@@ -89,7 +89,7 @@
 								<span class="median" style:left={pct(s.median)}></span>
 								{#each s.outliers as outlier, i (i)}<span class="outlier" style:left={pct(outlier)}></span>{/each}
 							{:else}
-								{#each r.values as value, i (i)}<span class="sample-dot" style={`left:${pct(value)};top:calc(50% + ${(i - (s.n - 1) / 2) * 8}px)`}></span>{/each}
+								{#each r.values as value, i (i)}<span class="sample-dot" style={`left:${pct(value)};top:calc(50% + ${(i - (s.n - 1) / 2) * 8 - (s.n === 1 ? 5 : 0)}px)`}></span>{/each}
 							{/if}
 							<span class="mean" style:left={pct(s.mean)}></span>
 						</span>

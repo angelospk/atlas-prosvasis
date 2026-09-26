@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import type { AtlasData, CoverageCell, Metric, Prefecture, Sector, Specialty } from '$lib/atlas/types';
 	import {
 		buildIndex,
@@ -112,7 +111,8 @@
 		const si = sortSpec == null ? -1 : data.specialties.findIndex((spec) => spec.id === sortSpec);
 		return order.sort((a, b) => si < 0 ? data.prefectures[a].name.localeCompare(data.prefectures[b].name, 'el') : compare(values[si][a].v, values[si][b].v) || data.prefectures[a].name.localeCompare(data.prefectures[b].name, 'el'));
 	});
-	const pageSize = $derived(Math.max(1, Math.floor((availableWidth - 190) / (big ? 30 : 22))));
+	// Row header ~230px, each column 22px + 1px border (30px + 1 in the big view).
+	const pageSize = $derived(Math.max(1, Math.floor((availableWidth - 230) / (big ? 31 : 23))));
 	const pageCount = $derived(Math.max(1, Math.ceil(prefOrder.length / pageSize)));
 	const currentPrefOrder = $derived(prefOrder.slice(prefPage * pageSize, (prefPage + 1) * pageSize));
 	const pageStart = $derived(prefOrder.length ? prefPage * pageSize + 1 : 0);
@@ -159,13 +159,15 @@
 	}
 	function compactValue(cell: Val): string {
 		if (cell.unknown) return 'Χωρίς στοιχεία';
+		// A prefecture without a site still has a nearest one: that is what «Απόσταση» is for.
+		if (metric === 'nearestKm') return cell.nearestKm == null ? 'Χωρίς στοιχεία' : fmtKm(cell.nearestKm);
 		if (cell.count === 0) return '0 σημεία';
 		switch (metric) {
 			case 'count': return `${fmtInt(cell.count)} σημεία`;
 			case 'per100k': return `${fmtPer100k(cell.per100k)} ανά 100.000 κατοίκους`;
 			case 'earliestDate': return fmtWaitCompact(cell.earliestDate, data.scan.at);
-			case 'nearestKm': return cell.nearestKm == null ? 'Χωρίς στοιχεία' : fmtKm(cell.nearestKm);
 		}
+		return '';
 	}
 	function openBig(event: MouseEvent) { opener = event.currentTarget as HTMLElement; big = true; }
 	function closeBig() { big = false; overlay = null; opener?.focus(); }
@@ -187,12 +189,16 @@
 		else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 	}
 
-	onMount(() => {
-		const measure = () => { if (matrixEl) availableWidth = Math.max(320, matrixEl.getBoundingClientRect().width); };
+	// The desktop matrix mounts only after `compact` turns false, so observe it whenever it
+	// appears rather than once at mount.
+	$effect(() => {
+		const el = matrixEl;
+		if (!el) return;
+		const measure = () => (availableWidth = Math.max(320, el.getBoundingClientRect().width));
 		measure();
-		if (typeof ResizeObserver === 'undefined' || !matrixEl) return;
+		if (typeof ResizeObserver === 'undefined') return;
 		const observer = new ResizeObserver(measure);
-		observer.observe(matrixEl);
+		observer.observe(el);
 		return () => observer.disconnect();
 	});
 	$effect(() => { if (prefPage >= pageCount) prefPage = pageCount - 1; });
