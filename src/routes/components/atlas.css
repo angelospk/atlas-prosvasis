@@ -1,0 +1,214 @@
+/* Atlas theme: the same warm paper, one ink and one pine accent as /doctor, declared once
+   on the `.atlas` root. Components only use the variables. Shared marks (sector squares,
+   hatching, Leaflet pins) live here because Leaflet injects its HTML outside any component
+   scope and the same mark must look identical in list, map, matrix and panel. */
+
+.atlas {
+	--paper: #f6f2ea;
+	--paper-2: #ede7db;
+	--card: #fffcf7;
+	--ink: #1e2a2b;
+	--ink-2: #4b5557;
+	--ink-3: #5f696c; /* 5.05:1 on --paper, 5.51:1 on --card (AA) */
+	--line: #ddd5c6;
+	--line-2: #c9bfad;
+	--accent: #2f6b5b;
+	--accent-d: #245446;
+	--accent-soft: #e3ece6;
+	--urgent: #a0402e;
+	--urgent-soft: #f4e5df;
+	--warn: #7a5410;
+	--warn-soft: #f3e9d2;
+	--shadow: 0 1px 2px rgba(60, 45, 20, 0.06), 0 8px 20px -14px rgba(60, 45, 20, 0.22);
+	--serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+	--sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+	--r-ctl: 8px;
+	--r-box: 14px;
+	--hatch: repeating-linear-gradient(
+		-45deg,
+		transparent 0 3px,
+		var(--line-2) 3px 4px
+	);
+
+	background: var(--paper);
+	color: var(--ink);
+	font-family: var(--sans);
+	font-size: 1rem;
+	line-height: 1.45;
+	font-variant-numeric: tabular-nums;
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Headings: Source Serif 4, upright, 600. Everything else, numbers included, is IBM Plex Sans. */
+.atlas h1,
+.atlas h2,
+.atlas h3,
+.atlas h4 {
+	font-family: var(--serif);
+	font-weight: 600;
+	font-style: normal;
+	letter-spacing: -0.01em;
+	line-height: 1.15;
+	margin: 0;
+	text-wrap: balance;
+}
+.atlas h1 {
+	font-weight: 700;
+}
+
+.atlas .num {
+	font-variant-numeric: tabular-nums;
+}
+
+.atlas button {
+	font-family: inherit;
+	color: inherit;
+}
+
+.atlas :focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+/* ---- Sector mark: one small square, four tones. Used in lists, legends, the panel. ---- */
+.atlas .smark {
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	border: 1.5px solid transparent;
+	box-sizing: border-box;
+	vertical-align: -1px;
+	flex: none;
+}
+.atlas .smark.esy {
+	background: var(--ink);
+	border-color: var(--ink);
+}
+.atlas .smark.pfy {
+	background: var(--accent);
+	border-color: var(--accent);
+}
+.atlas .smark.eopyy {
+	background: var(--card);
+	border-color: var(--accent);
+}
+.atlas .smark.private {
+	background: var(--card);
+	border-color: var(--ink-3);
+}
+/* Absent sector in a mix: the shape stays so the row's four slots always align. */
+.atlas .smark.off {
+	background: transparent;
+	border-color: var(--line);
+}
+
+/* Unknown / not measured: hatching, never a colour that could read as a value. */
+.atlas .hatch {
+	background: var(--hatch);
+}
+
+/* ---- Leaflet pins (global: Leaflet renders the HTML outside Svelte scope) ---- */
+.atlas-pin {
+	background: none;
+	border: none;
+}
+.atlas-pin > span {
+	display: block;
+	width: 12px;
+	height: 12px;
+	border-radius: 2px;
+	box-sizing: border-box;
+	border: 2px solid #1e2a2b;
+	background: #1e2a2b;
+	box-shadow: 0 0 0 1.5px #fffcf7;
+}
+.atlas-pin.pfy > span {
+	border-color: #2f6b5b;
+	background: #2f6b5b;
+}
+.atlas-pin.eopyy > span {
+	border-color: #2f6b5b;
+	background: #fffcf7;
+}
+.atlas-pin.private > span {
+	border-color: #5f696c;
+	background: #fffcf7;
+}
+/* Ministry pin missing or wrong: the town centre stands in. A dashed ring says so. */
+.atlas-pin.approx > span {
+	outline: 1.5px dashed #5f696c;
+	outline-offset: 2px;
+}
+.atlas-pin.sel > span {
+	box-shadow: 0 0 0 1.5px #fffcf7, 0 0 0 3.5px #2f6b5b;
+}
+
+.atlas-cluster {
+	background: none;
+	border: none;
+}
+.atlas-cluster > span {
+	display: grid;
+	place-items: center;
+	width: 100%;
+	height: 100%;
+	border-radius: 50%;
+	background: #fffcf7;
+	border: 1.5px solid #4b5557;
+	color: #1e2a2b;
+	font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+	font-size: 0.72rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	box-shadow: 0 1px 2px rgba(60, 45, 20, 0.15);
+}
+
+.atlas-km {
+	background: #fffcf7;
+	border: 1px solid #c9bfad;
+	border-radius: 4px;
+	color: #1e2a2b;
+	font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+	font-size: 0.78rem;
+	font-variant-numeric: tabular-nums;
+	padding: 2px 6px;
+	box-shadow: none;
+	white-space: nowrap;
+}
+.atlas-km::before {
+	display: none;
+}
+
+/* Tiles softened to sit on the paper; popups and attribution in the palette. */
+.atlas .leaflet-tile-pane {
+	filter: saturate(0.55) sepia(0.14) brightness(1.03);
+}
+.atlas .leaflet-container {
+	font-family: var(--sans);
+	background: var(--paper-2);
+}
+.atlas .leaflet-control-attribution {
+	background: rgba(255, 252, 247, 0.85);
+	color: var(--ink-3);
+	font-size: 0.66rem;
+}
+.atlas .leaflet-control-attribution a {
+	color: var(--ink-2);
+}
+.atlas .leaflet-bar a {
+	background: var(--card);
+	color: var(--ink);
+	border-bottom-color: var(--line);
+}
+
+/* Motion: everything is ≤ 200ms on colour/opacity/transform; none at all when asked. */
+@media (prefers-reduced-motion: reduce) {
+	.atlas *,
+	.atlas *::before,
+	.atlas *::after {
+		transition: none !important;
+		animation: none !important;
+		scroll-behavior: auto !important;
+	}
+}
