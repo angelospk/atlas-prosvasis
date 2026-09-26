@@ -651,3 +651,82 @@ export function toCsv(rows: readonly (readonly CsvValue[])[]): string {
 	};
 	return '﻿' + rows.map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
 }
+
+// ---------- waits: distribution of days to the first free appointment ----------
+
+export interface WaitStats {
+	n: number;
+	min: number;
+	max: number;
+	q1: number;
+	median: number;
+	q3: number;
+	mean: number;
+	/** Whisker ends: the farthest values within 1.5 × IQR of the box (Tukey). */
+	lo: number;
+	hi: number;
+	/** Values beyond the whiskers: the rare, exceptional waits. */
+	outliers: number[];
+}
+
+function quantile(sorted: number[], q: number): number {
+	const pos = (sorted.length - 1) * q;
+	const i = Math.floor(pos);
+	const f = pos - i;
+	return i + 1 < sorted.length ? sorted[i] + f * (sorted[i + 1] - sorted[i]) : sorted[i];
+}
+
+/** Box-plot summary of waits in days; null when there is no value. */
+export function waitStats(values: readonly number[]): WaitStats | null {
+	if (values.length === 0) return null;
+	const v = [...values].sort((a, b) => a - b);
+	const q1 = quantile(v, 0.25);
+	const q3 = quantile(v, 0.75);
+	const fence = 1.5 * (q3 - q1);
+	const inside = v.filter((x) => x >= q1 - fence && x <= q3 + fence);
+	return {
+		n: v.length,
+		min: v[0],
+		max: v[v.length - 1],
+		q1,
+		median: quantile(v, 0.5),
+		q3,
+		mean: v.reduce((s, x) => s + x, 0) / v.length,
+		lo: inside[0],
+		hi: inside[inside.length - 1],
+		outliers: v.filter((x) => x < q1 - fence || x > q3 + fence)
+	};
+}
+
+export interface WaitRow {
+	key: string;
+	name: string;
+	/** Sites in scope, with or without a date. */
+	sites: number;
+	stats: WaitStats;
+}
+
+/**
+ * One row per specialty (Greece or a chosen prefecture) or per prefecture (a chosen
+ * specialty), or the single chosen cell; every site in the chosen sectors with a first
+ * free date is one value. Longest typical (median) wait first.
+ */
+export function waitRows(data: AtlasData, idx: AtlasIndex, selection: Selection): WaitRow[] {
+	const { prefectureId, specialtyId, sectors } = selection;
+	const pairs: { prefectureId: number | null; specialtyId: number; name: string }[] =
+		specialtyId != null && prefectureId == null
+			? data.prefectures.map((p) => ({ prefectureId: p.id, specialtyId, name: p.name }))
+			: data.specialties
+					.filter((s) => specialtyId == null || s.id === specialtyId)
+					.map((s) => ({ prefectureId, specialtyId: s.id, name: s.name }));
+	const rows: WaitRow[] = [];
+	for (const p of pairs) {
+		const sites = providersIn(idx, p.prefectureId, p.specialtyId, sectors);
+		const days = sites
+			.map((x) => daysFromScan(providerDate(x, p.specialtyId), data.scan.at))
+			.filter((d): d is number => d != null && d >= 0);
+		const stats = waitStats(days);
+		if (stats) rows.push({ key: cellKey(p.prefectureId, p.specialtyId), name: p.name, sites: sites.length, stats });
+	}
+	return rows.sort((a, b) => b.stats.median - a.stats.median || a.name.localeCompare(b.name, 'el'));
+}

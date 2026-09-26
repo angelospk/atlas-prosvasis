@@ -137,14 +137,12 @@
 		const a: Leaflet.LatLngTuple = [pref.seat.lat, pref.seat.lon];
 		const b: Leaflet.LatLngTuple = [p.lat!, p.lon!];
 		const flagged = near.km! > data.distanceFlagKm;
+		// The km sit on hover only: a permanent label covered the points underneath, and the
+		// list beside the map already states the distance.
 		g.addLayer(
-			L.polyline([a, b], { color: flagged ? '#a0402e' : '#2f6b5b', weight: 1.5, dashArray: '4 5', opacity: 0.9, interactive: false })
-		);
-		const mid: Leaflet.LatLngTuple = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-		g.addLayer(
-			L.marker(mid, { icon: L.divIcon({ className: 'atlas-kmwrap', html: '', iconSize: [0, 0] }), interactive: false, keyboard: false }).bindTooltip(
+			L.polyline([a, b], { color: flagged ? '#a0402e' : '#2f6b5b', weight: 1.5, dashArray: '4 5', opacity: 0.6 }).bindTooltip(
 				`${fmtKm(near.km)} σε ευθεία`,
-				{ permanent: true, direction: 'center', className: 'atlas-km' }
+				{ sticky: true, className: 'atlas-km' }
 			)
 		);
 		lineLayer = g.addTo(map);

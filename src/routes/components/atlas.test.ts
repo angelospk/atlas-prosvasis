@@ -9,6 +9,8 @@ import fixture from '$lib/atlas/fixture.json';
 import {
 	buildIndex,
 	providerName,
+	waitRows,
+	waitStats,
 	cellKey,
 	countClass,
 	daysBetween,
@@ -46,6 +48,7 @@ import SpecialtyCoverageBars from './SpecialtyCoverageBars.svelte';
 import CoverageRanking from './CoverageRanking.svelte';
 import ScanChangeChart from './ScanChangeChart.svelte';
 import MethodologyBlock from './MethodologyBlock.svelte';
+import WaitDistribution from './WaitDistribution.svelte';
 
 const data = fixture as unknown as AtlasData;
 const report = fixture as unknown as AtlasReport;
@@ -351,5 +354,39 @@ describe('server render (weekly layer)', () => {
 		for (const s of report.scans) expect(html).toContain(fmtDayShort(s.id));
 		expect(html).toContain('κατώτατο όριο');
 		expect(html).toContain('Έκδοση μεθοδολογίας 1');
+	});
+});
+
+describe('waits (box plot)', () => {
+	it('summarises days: quartiles, median, mean, whiskers inside 1.5 IQR, the rest outliers', () => {
+		const s = waitStats([1, 2, 3, 4, 5, 6, 7, 8, 100])!;
+		expect(s.n).toBe(9);
+		expect(s.median).toBe(5);
+		expect([s.q1, s.q3]).toEqual([3, 7]);
+		expect(s.lo).toBe(1);
+		expect(s.hi).toBe(8); // 100 is beyond q3 + 1.5·IQR = 13
+		expect(s.outliers).toEqual([100]);
+		expect(s.mean).toBeCloseTo(15.11, 1);
+		expect(waitStats([])).toBeNull();
+	});
+	it('rows follow the selection: specialties nationwide, a prefecture’s specialties, a specialty’s prefectures, one cell', () => {
+		const none = waitRows(data, idx, all);
+		expect(none.length).toBeGreaterThan(0);
+		expect(new Set(none.map((r) => r.key.split(':')[0]))).toEqual(new Set(['0']));
+		const pref = waitRows(data, idx, { ...all, prefectureId: 20 });
+		expect(pref.every((r) => r.key.startsWith('20:'))).toBe(true);
+		const spec = waitRows(data, idx, { ...all, mode: 'specialty', specialtyId: 16 });
+		expect(spec.every((r) => r.key.endsWith(':16'))).toBe(true);
+		const one = waitRows(data, idx, { ...all, prefectureId: 20, specialtyId: 16 });
+		expect(one.length).toBeLessThanOrEqual(1);
+		// longest typical wait first
+		for (let i = 1; i < none.length; i++) expect(none[i - 1].stats.median).toBeGreaterThanOrEqual(none[i].stats.median);
+	});
+	it('renders one row per line with a box, and says how many sites had a date', () => {
+		const html = render(WaitDistribution, { props: { data, selection: all, onSelect: () => {} } }).body;
+		expect(html).toContain('Αναμονή για πρώτο ραντεβού');
+		expect(html).toContain('class="box');
+		expect(html).toContain('με ημερομηνία');
+		expect(html).not.toContain('—');
 	});
 });

@@ -18,6 +18,7 @@
 	import CoverageRanking from './components/CoverageRanking.svelte';
 	import ScanChangeChart from './components/ScanChangeChart.svelte';
 	import MethodologyBlock from './components/MethodologyBlock.svelte';
+	import WaitDistribution from './components/WaitDistribution.svelte';
 
 	let { data: page }: { data: { atlas: AtlasReport | null; boundaries: PrefectureBoundaries } } = $props();
 	const data = $derived(page.atlas);
@@ -109,6 +110,8 @@
 			<AccessMap {data} {selection} {selectedKey} onSelect={openCell} />
 		</div>
 	</div>
+
+	<WaitDistribution {data} {selection} onSelect={openCell} />
 
 	<details class="more">
 		<summary>Περισσότερα εργαλεία</summary>
