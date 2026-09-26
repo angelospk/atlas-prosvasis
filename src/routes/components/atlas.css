@@ -39,6 +39,62 @@
 	-webkit-font-smoothing: antialiased;
 }
 
+/* Every grid/flex child may shrink; intrinsic Greek labels must wrap inside their cell. */
+.atlas,
+.atlas * {
+	min-width: 0;
+}
+.atlas img,
+.atlas video,
+.atlas canvas,
+.atlas svg {
+	max-width: 100%;
+}
+.atlas input,
+.atlas select,
+.atlas textarea {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 100%;
+	font-size: max(16px, 1em) !important;
+}
+.atlas select option {
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+.atlas button,
+.atlas a,
+.atlas summary,
+.atlas input,
+.atlas select,
+.atlas textarea {
+	touch-action: manipulation;
+}
+.atlas button,
+.atlas input,
+.atlas select,
+.atlas textarea {
+	min-height: 44px;
+	max-width: 100%;
+}
+.atlas summary {
+	min-height: 44px;
+}
+.atlas [id='atlas-map'],
+.atlas [id='atlas-list'],
+.atlas [id='atlas-waits'],
+.atlas [id='atlas-details'] {
+	scroll-margin-top: calc(var(--atlas-bar-height, 0px) + 12px);
+}
+.atlas .results {
+	min-width: 0;
+}
+.atlas .leaflet-container,
+.atlas .leaflet-container * {
+	/* Leaflet owns map panning and pinch gestures. */
+	touch-action: auto;
+}
+
 /* Headings: Source Serif 4, upright, 600. Everything else, numbers included, is IBM Plex Sans. */
 .atlas h1,
 .atlas h2,

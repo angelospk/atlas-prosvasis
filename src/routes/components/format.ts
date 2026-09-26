@@ -62,6 +62,7 @@ export function fold(s: string): string {
 
 const intFmt = new Intl.NumberFormat('el-GR', { maximumFractionDigits: 0 });
 const oneFmt = new Intl.NumberFormat('el-GR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const statFmt = new Intl.NumberFormat('el-GR', { maximumFractionDigits: 1 });
 
 export function fmtInt(n: number): string {
 	return intFmt.format(n);
@@ -74,6 +75,11 @@ export const EMPTY = '–';
 export function fmtPer100k(n: number | null): string {
 	if (n == null) return EMPTY;
 	return oneFmt.format(n);
+}
+
+/** Decimal statistics in prose: at most one Greek decimal place. */
+export function fmtStat(n: number): string {
+	return statFmt.format(n);
 }
 
 /** Kilometres with one decimal for < 100, whole above («152 χλμ», «12,4 χλμ»). */
@@ -92,7 +98,11 @@ const MONTHS = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαΐ', 'Ιουν', '�
 export function parseDay(iso: string | null | undefined): Date | null {
 	const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})/);
 	if (!m) return null;
-	return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+	const year = +m[1];
+	const month = +m[2] - 1;
+	const day = +m[3];
+	const date = new Date(Date.UTC(year, month, day));
+	return date.getUTCFullYear() === year && date.getUTCMonth() === month && date.getUTCDate() === day ? date : null;
 }
 
 /** «Δευ 29 Σεπ» */
@@ -125,6 +135,14 @@ export function fmtOffset(days: number | null): string {
 	if (days < 14) return `+${days} ημ.`;
 	if (days < 60) return `+${Math.round(days / 7)} εβδ.`;
 	return `+${Math.round(days / 30)} μήν.`;
+}
+
+/** Compact mobile date copy, measured from the scan rather than from today. */
+export function fmtWaitCompact(iso: string | null, scanAt: string): string {
+	const days = daysFromScan(iso, scanAt);
+	if (days == null || days < 0) return 'Χωρίς ημερομηνία';
+	if (days === 0) return 'ίδια μέρα';
+	return `σε ${fmtInt(days)} ημ.`;
 }
 
 // ---------- keys ----------
@@ -703,6 +721,8 @@ export interface WaitRow {
 	name: string;
 	/** Sites in scope, with or without a date. */
 	sites: number;
+	/** Sorted day offsets used to calculate `stats`, including duplicate samples. */
+	values: number[];
 	stats: WaitStats;
 }
 
@@ -725,8 +745,9 @@ export function waitRows(data: AtlasData, idx: AtlasIndex, selection: Selection)
 		const days = sites
 			.map((x) => daysFromScan(providerDate(x, p.specialtyId), data.scan.at))
 			.filter((d): d is number => d != null && d >= 0);
-		const stats = waitStats(days);
-		if (stats) rows.push({ key: cellKey(p.prefectureId, p.specialtyId), name: p.name, sites: sites.length, stats });
+		const values = days.sort((a, b) => a - b);
+		const stats = waitStats(values);
+		if (stats) rows.push({ key: cellKey(p.prefectureId, p.specialtyId), name: p.name, sites: sites.length, values, stats });
 	}
 	return rows.sort((a, b) => b.stats.median - a.stats.median || a.name.localeCompare(b.name, 'el'));
 }

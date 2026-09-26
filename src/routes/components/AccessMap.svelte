@@ -244,15 +244,18 @@
 	.map {
 		height: 520px;
 		width: 100%;
+		min-width: 0;
+		max-width: 100%;
 		border: 1px solid var(--line);
 		border-radius: 10px;
 		overflow: hidden;
 		z-index: 0;
 		background: var(--paper-2);
 	}
-	@media (max-width: 760px) {
+	@media (max-width: 899px) {
 		.map {
-			height: min(62vh, 480px);
+			height: min(60dvh, 420px);
+			min-height: 280px;
 		}
 	}
 	.legend {

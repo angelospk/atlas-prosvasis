@@ -154,16 +154,18 @@
 		color: var(--ink-2);
 	}
 	input {
+		min-height: 44px;
 		height: 44px;
 		border: 1px solid var(--line-2);
 		background: var(--card);
 		border-radius: var(--r-ctl);
 		padding: 0 12px;
 		font: inherit;
-		font-size: 0.98rem;
+		font-size: 16px;
 		color: var(--ink);
 		width: 100%;
 		min-width: 0;
+		box-sizing: border-box;
 		text-overflow: ellipsis;
 	}
 	input::placeholder {
@@ -181,8 +183,9 @@
 		font-size: 0.7rem;
 	}
 	.compact input {
-		height: 38px;
-		font-size: 0.92rem;
+		min-height: 44px;
+		height: 44px;
+		font-size: 16px;
 		padding: 0 10px;
 	}
 	.list {
@@ -195,7 +198,12 @@
 		padding: 4px 0;
 		list-style: none;
 		max-height: min(300px, 50vh);
-		overflow: auto;
+		width: 100%;
+		min-width: 0;
+		max-width: 100%;
+		box-sizing: border-box;
+		overflow-y: auto;
+		overflow-x: hidden;
 		background: var(--card);
 		border: 1px solid var(--line-2);
 		border-radius: 10px;
@@ -208,6 +216,8 @@
 		padding: 0.5rem 0.8rem;
 		font-size: 0.93rem;
 		cursor: pointer;
+		white-space: normal;
+		overflow-wrap: anywhere;
 	}
 	.list li.cur {
 		background: var(--paper-2);

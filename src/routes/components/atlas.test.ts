@@ -11,6 +11,7 @@ import {
 	providerName,
 	waitRows,
 	waitStats,
+	fmtWaitCompact,
 	cellKey,
 	countClass,
 	daysBetween,
@@ -49,6 +50,8 @@ import CoverageRanking from './CoverageRanking.svelte';
 import ScanChangeChart from './ScanChangeChart.svelte';
 import MethodologyBlock from './MethodologyBlock.svelte';
 import WaitDistribution from './WaitDistribution.svelte';
+import Page from '../+page.svelte';
+import { SECTION_IDS, calculateActiveSection } from './navigation';
 
 const data = fixture as unknown as AtlasData;
 const report = fixture as unknown as AtlasReport;
@@ -58,6 +61,47 @@ const boundaries = JSON.parse(
 ) as PrefectureBoundaries;
 const idx = buildIndex(data);
 const all: Selection = { mode: 'place', prefectureId: null, specialtyId: null, sectors: [...SECTORS] };
+
+function waitFixture(days: number[]): AtlasData {
+	const base = structuredClone(data) as AtlasData;
+	base.prefectures = [base.prefectures[0]];
+	base.specialties = [{ id: 1, name: 'Καρδιολόγος' }];
+	base.providers = days.map((day, i) => ({
+		id: `wait-${i}`,
+		sector: 'esy',
+		name: `Νοσοκομείο ${i}`,
+		city: 'Άρτα',
+		address: '',
+		prefectureId: 1,
+		lat: 39.16,
+		lon: 20.98,
+		approx: false,
+		specialtyIds: [1],
+		firstDate: null,
+		firstDates: { '1': new Date(Date.UTC(2026, 8, 26 + day)).toISOString().slice(0, 10) }
+	}));
+	base.cells = [{
+		prefectureId: 1,
+		specialtyId: 1,
+		counts: { esy: days.length, pfy: 0, eopyy: 0, private: 0 },
+		per100k: 1,
+		earliestDate: null,
+		nearestKm: 1,
+		nearestProviderId: days.length ? 'wait-0' : null,
+		nearestPublicKm: 1,
+		nearestPublicProviderId: days.length ? 'wait-0' : null
+	}];
+	return base;
+}
+
+function wideCoverageFixture(): AtlasData {
+	const base = structuredClone(data) as AtlasData;
+	base.specialties = [
+		...base.specialties,
+		...Array.from({ length: 6 }, (_, i) => ({ id: 100 + i, name: `Ειδικότητα ${i + 1}` }))
+	];
+	return base;
+}
 
 describe('format', () => {
 	it('title-cases Greek names with a final sigma (the Ministry data carries no accents)', () => {
@@ -189,17 +233,16 @@ describe('server render', () => {
 		expect(mx).toContain('Μεγάλη προβολή');
 		expect(mx).not.toContain('role="dialog"'); // the big view opens on click only
 	});
-	it('SelectionBar: the two pickers, folded sectors, the «Βλέπεις» line and a reset only when something is chosen', () => {
+	it('SelectionBar: the two pickers, folded sectors, navigation and a reset only when something is chosen', () => {
 		const html = render(SelectionBar, { props: { data, selection: { ...sel, sectors: ['esy', 'pfy'] }, onChange: noop, onReset: noop } }).body;
-		expect(html).toContain('Βλέπεις:');
-		expect(html).toContain('Ν. Ιωαννίνων · Καρδιολόγος · ΕΣΥ + ΠΦΥ');
+		expect(html).toContain('Λίστα');
 		expect(html).toContain('Καθαρισμός');
 		expect(html).toContain('Φορείς:');
 		expect((html.match(/role="combobox"/g) ?? []).length).toBe(2);
 		expect(html).toContain('value="Ιωάννινα"');
 		expect(html).toContain('value="Καρδιολόγος"');
 		const blank = render(SelectionBar, { props: { data, selection: all, onChange: noop, onReset: noop } }).body;
-		expect(blank).toContain('όλη την Ελλάδα · όλες οι ειδικότητες · όλοι οι φορείς');
+		expect(blank).toContain('Χάρτης');
 		expect(blank).not.toContain('Καθαρισμός');
 		expect(blank).toContain('value="Όλη η Ελλάδα"');
 		expect(blank).toContain('value="Όλες"');
@@ -234,7 +277,9 @@ describe('server render', () => {
 			render(SpecialtyCoverageBars, { props: { data, sectors: [...SECTORS], selectedSpecialtyId: 16, onSelect: noop } }).body,
 			render(CoverageRanking, { props: { data, selection: { ...sel, mode: 'specialty' }, onSelect: noop } }).body,
 			render(ScanChangeChart, { props: { report } }).body,
-			render(MethodologyBlock, { props: { report } }).body
+			render(MethodologyBlock, { props: { report } }).body,
+			render(WaitDistribution, { props: { data, selection: sel, expandedKey: '20:16', onToggle: noop, onShowOnMap: noop } }).body,
+			render(CoverageMatrix, { props: { data, sectors: [...SECTORS], metric: 'count', onMetric: noop, onSelect: noop, compact: true, prefectureId: 20, onPrefectureChange: noop } }).body
 		].join('\n');
 		expect(html).not.toContain('—');
 		expect(html).not.toContain('eyebrow');
@@ -280,6 +325,167 @@ describe('weekly helpers', () => {
 		expect(boundaries.features.length).toBe(51);
 		const ids = new Set(boundaries.features.map((f) => f.properties.id));
 		for (const p of data.prefectures) expect(ids.has(p.id)).toBe(true);
+	});
+});
+
+describe('responsive atlas contracts', () => {
+	const sel: Selection = { mode: 'place', prefectureId: null, specialtyId: null, sectors: [...SECTORS] };
+	const noop = () => {};
+
+	it('formats compact wait dates relative to the scan, including invalid and negative offsets', () => {
+		expect(fmtWaitCompact('2026-09-26', data.scan.at)).toBe('ίδια μέρα');
+		expect(fmtWaitCompact('2026-09-29', data.scan.at)).toBe('σε 3 ημ.');
+		expect(fmtWaitCompact(null, data.scan.at)).toBe('Χωρίς ημερομηνία');
+		expect(fmtWaitCompact('not-a-date', data.scan.at)).toBe('Χωρίς ημερομηνία');
+		expect(fmtWaitCompact('2026-09-25', data.scan.at)).toBe('Χωρίς ημερομηνία');
+	});
+
+	it('renders both labeled native selects with complete options and keeps desktop comboboxes', () => {
+		const html = render(SelectionBar, {
+			props: {
+				data,
+				selection: { ...sel, prefectureId: 20, specialtyId: 16 },
+				onChange: noop,
+				onReset: noop,
+				activeSection: 'map',
+				onNavigate: noop,
+				updating: false
+			}
+		}).body;
+		expect(html).toContain('Νομός');
+		expect(html).toContain('Ειδικότητα');
+		expect((html.match(/<select/g) ?? []).length).toBe(2);
+		expect((html.match(/role="combobox"/g) ?? []).length).toBe(2);
+		expect(html).toContain('Όλη η Ελλάδα');
+		expect(html).toContain('Όλες');
+		expect(html).toMatch(/id="[^"]+native-place"/);
+		expect(html).toMatch(/id="[^"]+native-spec"/);
+		expect(html).toContain('value="20" selected');
+		expect(html).toContain('value="16" selected');
+	});
+
+	it.each([
+		{ values: [3], sampleDots: 1 },
+		{ values: [2, 4], sampleDots: 2 },
+		{ values: [1, 2, 4, 8], sampleDots: 4 }
+	])('renders small wait samples as dots only ($sampleDots)', ({ values, sampleDots }) => {
+		const fixture = waitFixture(values);
+		const html = render(WaitDistribution, {
+			props: { data: fixture, selection: { ...sel, prefectureId: 1, specialtyId: 1 }, expandedKey: null, onToggle: noop, onShowOnMap: noop }
+		}).body;
+		expect((html.match(/class="sample-dot/g) ?? []).length).toBe(sampleDots);
+		expect((html.match(/class="mean/g) ?? []).length).toBe(1);
+		expect(html).not.toContain('class="box"');
+		expect(html).not.toContain('class="whisk"');
+		expect(html).not.toContain('class="median"');
+	});
+
+	it('renders a five-sample box plot, duplicate dots, outliers and an empty wait state', () => {
+		const five = render(WaitDistribution, {
+			props: { data: waitFixture([1, 1, 2, 3, 50]), selection: { ...sel, prefectureId: 1, specialtyId: 1 }, expandedKey: null, onToggle: noop, onShowOnMap: noop }
+		}).body;
+		expect(five).toMatch(/class="box(?: |")/);
+		expect(five).toMatch(/class="whisk(?: |")/);
+		expect(five).toMatch(/class="median(?: |")/);
+		expect((five.match(/class="outlier/g) ?? []).length).toBeGreaterThan(0);
+		expect((five.match(/class="sample-dot/g) ?? []).length).toBe(0);
+		const empty = render(WaitDistribution, {
+			props: { data: waitFixture([]), selection: { ...sel, prefectureId: 1, specialtyId: 1 }, expandedKey: null, onToggle: noop, onShowOnMap: noop }
+		}).body;
+		expect(empty).toContain('Κανένα σημείο με ημερομηνία');
+	});
+
+	it('wait rows expose controlled expansion, all four values and a separate map action', () => {
+		const key = '1:1';
+		const closed = render(WaitDistribution, {
+			props: { data: waitFixture([1, 2, 4]), selection: { ...sel, prefectureId: 1, specialtyId: 1 }, expandedKey: null, onToggle: noop, onShowOnMap: noop }
+		}).body;
+		expect(closed).toContain('aria-expanded="false"');
+		expect(closed).toMatch(/aria-controls="[^"]+"/);
+		const open = render(WaitDistribution, {
+			props: { data: waitFixture([1, 2, 4]), selection: { ...sel, prefectureId: 1, specialtyId: 1 }, expandedKey: key, onToggle: noop, onShowOnMap: noop }
+		}).body;
+		expect(open).toContain('aria-expanded="true"');
+		expect(open).toContain('Διάμεσος:');
+		expect(open).toContain('Μέσος όρος:');
+		expect(open).toContain('Εύρος:');
+		expect(open).toContain('Σημεία με ημερομηνία:');
+		expect(open).toContain('Δες στον χάρτη');
+		expect(open).toContain('Αλλάζει την επιλογή στα φίλτρα.');
+		expect(open).toContain('Με ημερομηνία / σύνολο σημείων.');
+	});
+
+	it('section navigation has four ordered anchors and a pure reading-band calculation', () => {
+		const html = render(SelectionBar, { props: { data, selection: sel, onChange: noop, onReset: noop, activeSection: 'waits', onNavigate: noop, updating: false } }).body;
+		const hrefs = [...html.matchAll(/href="(#[^"]+)"/g)].map((m) => m[1]);
+		expect(hrefs).toEqual(['#atlas-map', '#atlas-list', '#atlas-waits', '#atlas-details']);
+		expect((html.match(/aria-current="location"/g) ?? []).length).toBe(1);
+		expect(html).not.toContain('Βλέπεις:');
+		expect(calculateActiveSection([
+			{ section: 'map', top: 20 },
+			{ section: 'list', top: 120 },
+			{ section: 'waits', top: 320 },
+			{ section: 'details', top: 600 }
+		], 250)).toBe('list');
+		expect(SECTION_IDS.details).toBe('atlas-details');
+	});
+
+	it('compact coverage list truncates at eight, supports all sort options, and expands all rows', () => {
+		const wide = wideCoverageFixture();
+		const props = { data: wide, selection: sel, sort: 'count' as const, onSort: noop, selectedKey: null, onSelect: noop, compact: true, expanded: false, onExpandedChange: noop };
+		const compact = render(CoverageList, { props }).body;
+		expect((compact.match(/data-key=/g) ?? []).length).toBe(8);
+		expect(compact).toContain('Περισσότερες');
+		expect(compact).toContain('Ταξινόμηση');
+		expect(compact).toContain('Νομοί:');
+		expect(compact).toContain('Οι ημέρες μετρούν από τη σάρωση.');
+		expect(compact).not.toContain('Έδρες >');
+		expect(compact).not.toContain('Σεπ');
+		for (const metric of ['count', 'per100k', 'earliestDate', 'nearestKm'] as const) {
+			const sorted = render(CoverageList, { props: { ...props, sort: metric } }).body;
+			expect((sorted.match(/data-key=/g) ?? []).length).toBe(8);
+		}
+		const expanded = render(CoverageList, { props: { ...props, expanded: true } }).body;
+		expect((expanded.match(/data-key=/g) ?? []).length).toBeGreaterThan(8);
+		const desktop = render(CoverageList, { props: { ...props, compact: false } }).body;
+		expect((desktop.match(/data-key=/g) ?? []).length).toBeGreaterThan(8);
+	});
+
+	it('compact matrix renders labeled controls and numeric actions, desktop retains the matrix and pagination', () => {
+		const compact = render(CoverageMatrix, {
+			props: { data, sectors: [...SECTORS], metric: 'count', onMetric: noop, onSelect: noop, compact: true, prefectureId: data.prefectures[0].id, onPrefectureChange: noop }
+		}).body;
+		expect(compact).toContain('Κάλυψη ανά νομό');
+		expect(compact).toContain('Νομός');
+		expect(compact).toContain('Μέτρηση');
+		expect(compact).toContain('Ανά 100.000 κατοίκους');
+		expect(compact).toContain('Δες στη λίστα');
+		expect(compact).not.toContain('<table');
+		expect(compact).not.toContain('Μεγάλη προβολή');
+		const desktop = render(CoverageMatrix, {
+			props: { data, sectors: [...SECTORS], metric: 'count', onMetric: noop, onSelect: noop, compact: false, prefectureId: data.prefectures[0].id, onPrefectureChange: noop }
+		}).body;
+		expect(desktop).toContain('<table');
+		expect(desktop).toContain('Μεγάλη προβολή');
+		expect(desktop).toContain('Προηγούμενοι νομοί');
+		expect(desktop).toContain('Επόμενοι νομοί');
+	});
+
+	it('page SSR uses a collapsed mobile point-map disclosure and all section IDs', () => {
+		const html = render(Page, { props: { data: { atlas: report, boundaries } } }).body;
+		expect(html).toContain('Εμφάνιση χάρτη σημείων');
+		expect(html).toContain('aria-expanded="false"');
+		expect(html).toContain('aria-busy="false"');
+		expect(html).not.toContain('aria-label="Χάρτης παρόχων"');
+		for (const id of Object.values(SECTION_IDS)) expect(html).toContain(`id="${id}"`);
+	});
+
+	it('selection status has a stable slot in both states', () => {
+		const base = (updating: boolean) => render(SelectionBar, { props: { data, selection: sel, onChange: noop, onReset: noop, activeSection: 'map', onNavigate: noop, updating } }).body;
+		expect(base(false)).toContain('role="status"');
+		expect(base(false)).not.toContain('Ενημέρωση…');
+		expect(base(true)).toContain('role="status"');
+		expect(base(true)).toContain('Ενημέρωση…');
 	});
 });
 
@@ -382,9 +588,9 @@ describe('waits (box plot)', () => {
 		// longest typical wait first
 		for (let i = 1; i < none.length; i++) expect(none[i - 1].stats.median).toBeGreaterThanOrEqual(none[i].stats.median);
 	});
-	it('renders one row per line with a box, and says how many sites had a date', () => {
-		const html = render(WaitDistribution, { props: { data, selection: all, onSelect: () => {} } }).body;
-		expect(html).toContain('Αναμονή για πρώτο ραντεβού');
+	it('renders wait rows with a distribution and says how many sites had a date', () => {
+		const html = render(WaitDistribution, { props: { data, selection: all, expandedKey: null, onToggle: () => {}, onShowOnMap: () => {} } }).body;
+		expect(html).toContain('Αναμονή ραντεβού');
 		expect(html).toContain('class="box');
 		expect(html).toContain('με ημερομηνία');
 		expect(html).not.toContain('—');
