@@ -55,6 +55,7 @@ import Page from '../+page.svelte';
 import { dayAxis, WAIT_FILL, waitClass, waitPoints, waitSamples } from './waits';
 import { contrast, mixOklab, readableText } from './format';
 import { pickerHidden, readAtlasUrl, widgetUrl, writeAtlasUrl } from '$lib/atlas/url';
+import { prefLabel } from './format';
 import AtlasFooter from './AtlasFooter.svelte';
 import { SECTION_IDS, calculateActiveSection } from './navigation';
 
@@ -235,8 +236,8 @@ describe('server render', () => {
 		expect(render(AccessMap, { props: { data, selection: sel, selectedKey: '20:16', onSelect: noop } }).body).toContain('έδρα νομού');
 		const mx = render(CoverageMatrix, { props: { data, sectors: [...SECTORS], metric: 'nearestKm', onMetric: noop, onSelect: noop } }).body;
 		expect(mx).toContain('χωρίς μέτρηση');
-		expect(mx).toContain('Μεγάλη προβολή');
-		expect(mx).not.toContain('role="dialog"'); // the big view opens on click only
+		expect(mx).not.toContain('Μεγάλη προβολή'); // the inline matrix is the view; no second copy
+		expect(mx).not.toContain('role="dialog"');
 	});
 	it('AtlasNav: the mark without a title, the two pickers, folded sectors, sections and a reset only when something is chosen', () => {
 		const nav = (selection: Selection) => render(AtlasNav, { props: { data, selection, onChange: noop, onReset: noop, activeSection: 'map', onNavigate: noop } }).body;
@@ -464,7 +465,6 @@ describe('responsive atlas contracts', () => {
 			props: { data, sectors: [...SECTORS], metric: 'count', onMetric: noop, onSelect: noop, compact: false, prefectureId: data.prefectures[0].id, onPrefectureChange: noop }
 		}).body;
 		expect(desktop).toContain('<table');
-		expect(desktop).toContain('Μεγάλη προβολή');
 		expect(desktop).toContain('Προηγούμενοι νομοί');
 		expect(desktop).toContain('Επόμενοι νομοί');
 	});
@@ -507,7 +507,7 @@ describe('server render (weekly layer)', () => {
 		expect(picker).toMatch(/<option value="16" selected/);
 		expect(html).toContain('OpenStreetMap');
 		expect(html).toContain('geoBoundaries');
-		expect(html).toContain('<select');
+		expect(html).not.toContain('Διάλεξε νομό'); // a tap on the map picks the prefecture
 		// Every prefecture is a class; the legend counts sum to 51.
 		const rows = deriveRows(data, idx, sel);
 		const classes = rows.map((r) => rateClass(r.per100k));
@@ -684,6 +684,23 @@ describe('round 2: brand, copy, embeds and contrast', () => {
 		expect(html).toContain('class="atlas-mark');
 		expect(html).toContain('πηγή: e-ραντεβού');
 		expect(html).not.toContain('Ανεξάρτητη');
+	});
+});
+
+describe('round 3: no redundant controls', () => {
+	const noop = () => {};
+	it('the map shows the selected prefecture without hover, so a tap on a phone says something', () => {
+		const selected = render(PrefectureChoropleth, { props: { data, boundaries, selection: { mode: 'place', prefectureId: 20, specialtyId: 16, sectors: [...SECTORS] }, onSelect: noop } }).body;
+		expect(selected).toContain('class="tip');
+		expect(selected).toContain(prefLabel(idx.prefById.get(20)));
+		const none = render(PrefectureChoropleth, { props: { data, boundaries, selection: { mode: 'place', prefectureId: null, specialtyId: 16, sectors: [...SECTORS] }, onSelect: noop } }).body;
+		expect(none).not.toContain('class="tip');
+	});
+	it('the page has one specialty picker (the bar), not one per section', () => {
+		const html = render(Page, { props: { data: { atlas: report, boundaries } } }).body;
+		const specialtySelects = [...html.matchAll(/<select[^>]*>\s*(?:<!--[^>]*-->\s*)*<option value=""[^>]*>Όλες οι ειδικότητες/g)].length;
+		expect(specialtySelects).toBe(1);
+		expect(html).not.toContain('Διάλεξε νομό');
 	});
 });
 

@@ -57,7 +57,8 @@
 	});
 	const focusKey = (s: Selection) => s.prefectureId != null && s.specialtyId != null ? `${s.prefectureId}:${s.specialtyId}` : null;
 	const firstMatrixPrefectureId = $derived(data ? [...data.prefectures].sort((a, b) => a.name.localeCompare(b.name, 'el'))[0]?.id ?? null : null);
-	const effectiveMatrixPrefectureId = $derived(matrixPrefectureId ?? firstMatrixPrefectureId);
+	// The phone matrix follows the chosen prefecture until its own picker is used.
+	const effectiveMatrixPrefectureId = $derived(matrixPrefectureId ?? selection.prefectureId ?? firstMatrixPrefectureId);
 
 	function nextFrame(): Promise<void> {
 		if (typeof requestAnimationFrame === 'undefined') return Promise.resolve();
@@ -125,6 +126,8 @@
 	}
 	function pickPrefecture(prefectureId: number) { requestSelection({ ...selection, prefectureId }); }
 	function pickSpecialty(specialtyId: number | null) { requestSelection({ ...selection, specialtyId }); }
+	// On the map a second tap on the chosen prefecture goes back to all of Greece.
+	function togglePrefecture(prefectureId: number) { requestSelection({ ...selection, prefectureId: selection.prefectureId === prefectureId ? null : prefectureId }); }
 	function openCell(key: string) {
 		const parsed = parseKey(key);
 		if (!parsed) return;
@@ -265,7 +268,7 @@
 			<div class="briefing"><WeeklyBriefing report={data} onSelect={applyFinding} /><ShareWidget widget="briefing" {selection} /></div>
 
 			<section id="atlas-map" class="mapblock" aria-label="Χάρτης κάλυψης">
-				<div class="choro"><PrefectureChoropleth {data} boundaries={page.boundaries} selection={selection} onSelect={pickPrefecture} metric={mapMetric} onMetric={setMetric} onSpecialty={pickSpecialty} /><ShareWidget widget="coverage" {selection} metric={mapMetric} /></div>
+				<div class="choro"><PrefectureChoropleth {data} boundaries={page.boundaries} selection={selection} onSelect={togglePrefecture} metric={mapMetric} onMetric={setMetric} /><ShareWidget widget="coverage" {selection} metric={mapMetric} /></div>
 				<div class="side"><MetricSummary {data} {selection} /><ShareWidget widget="summary" {selection} /></div>
 			</section>
 
@@ -286,7 +289,7 @@
 				</div>
 			</div>
 
-			<div class="wait-section"><WaitDistribution data={data} {selection} onPickSpecialty={pickSpecialty} onShowOnMap={showWaitOnMap} /><ShareWidget widget="waits" {selection} /></div>
+			<div class="wait-section"><WaitDistribution data={data} {selection} onShowOnMap={showWaitOnMap} specialtyPicker={false} /><ShareWidget widget="waits" {selection} /></div>
 
 			<details id="atlas-details" class="more" bind:open={toolsOpen} ontoggle={() => { toolsOpen = (document.getElementById('atlas-details') as HTMLDetailsElement | null)?.open ?? toolsOpen; void tick().then(() => { rebuildSectionObserver(); updateActiveSection(); }); }}>
 				<summary>Αναλυτικά</summary>

@@ -109,7 +109,7 @@
 			</label>
 		{/if}
 		{#if widget === 'coverage' && page.boundaries}
-			<PrefectureChoropleth {data} boundaries={page.boundaries} {selection} onSelect={(prefectureId) => update({ prefectureId })} {metric} onMetric={(m) => { metric = m; sync(); }} onSpecialty={specialtyPicker ? pickSpecialty : null} />
+			<PrefectureChoropleth {data} boundaries={page.boundaries} {selection} onSelect={(prefectureId) => update({ prefectureId: selection.prefectureId === prefectureId ? null : prefectureId })} {metric} onMetric={(m) => { metric = m; sync(); }} onSpecialty={specialtyPicker ? pickSpecialty : null} />
 		{:else if widget === 'points'}
 			<AccessMap {data} {selection} {selectedKey} onSelect={openCell} />
 		{:else if widget === 'waits'}

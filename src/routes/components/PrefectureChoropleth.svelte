@@ -229,7 +229,10 @@
 		else parts.push(info.row.count === 0 ? 'δεν καταγράφεται στον κατάλογο' : `${plural(info.row.count, 'σημείο', 'σημεία')}, ${fmtPer100k(info.row.per100k)} ανά 100 χιλ.`);
 		return parts.join(' · ');
 	}
-	const activeInfo = $derived(active == null ? null : (infoById.get(active) ?? null));
+	// Hovered or focused first; otherwise the selected prefecture, so a tap on a phone (no hover)
+	// still shows its figures.
+	const shownId = $derived(active ?? selection.prefectureId);
+	const activeInfo = $derived(shownId == null ? null : (infoById.get(shownId) ?? null));
 	const sortedPrefs = $derived([...data.prefectures].sort((a, b) => a.name.localeCompare(b.name, 'el')));
 	const sortedSpecs = $derived([...data.specialties].sort((a, b) => titleCase(a.name).localeCompare(titleCase(b.name), 'el')));
 
@@ -411,6 +414,7 @@
 					aria-pressed={selection.prefectureId === s.id}
 					onpointerenter={(e) => enter(s.id, e)}
 					onpointermove={move}
+					onpointerleave={leave}
 					onfocus={() => focusIn(s.id)}
 					onblur={leave}
 					onclick={() => onSelect(s.id)}
@@ -454,15 +458,6 @@
 				</select>
 			</label>
 		{/if}
-		<label class="pick">
-			<span>Νομός</span>
-			<select value={selection.prefectureId ?? ''} onchange={(e) => { const v = (e.currentTarget as HTMLSelectElement).value; if (v) onSelect(+v); }}>
-				<option value="">Διάλεξε νομό</option>
-				{#each sortedPrefs as p (p.id)}
-					<option value={p.id}>{p.name}</option>
-				{/each}
-			</select>
-		</label>
 		<span class="spacer"></span>
 		<button type="button" class="tool" onclick={exportPng} disabled={exporting} title="Εικόνα PNG με τίτλο, υπόμνημα και πηγή">PNG</button>
 		<button type="button" class="tool" onclick={exportCsv} title="Οι 51 γραμμές του χάρτη">CSV</button>
@@ -697,10 +692,16 @@
 		color: var(--ink-2);
 	}
 	@media (max-width: 719px) {
-		.tip {
-			display: none;
+		/* No hover on phones: the tapped prefecture's figures sit under the map. */
+		.tip,
+		.tip.float {
+			position: static;
+			width: auto;
+			max-width: none;
+			margin-top: 0.5rem;
+			box-shadow: none;
 		}
-		/* The pickers take a row each; PNG and CSV share the last one. */
+		/* The picker takes a row; PNG and CSV share the next one. */
 		.tools {
 			display: grid;
 			grid-template-columns: 1fr 1fr;
