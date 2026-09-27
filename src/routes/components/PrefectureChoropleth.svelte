@@ -39,34 +39,40 @@
 		type Row
 	} from './format';
 	import { downloadBlob, downloadText } from './download';
+	import { prefectureWaits } from './waits';
+	import type { MapMetric } from '$lib/atlas/url';
+	import { fmtStat, type WaitStats } from './format';
 
 	let {
 		data,
 		boundaries,
 		selection,
-		onSelect
+		onSelect,
+		metric = 'coverage',
+		onMetric = (_metric: MapMetric) => {}
 	}: {
 		data: AtlasData;
 		boundaries: PrefectureBoundaries;
 		selection: Selection;
 		onSelect: (prefectureId: number) => void;
+		metric?: MapMetric; onMetric?: (metric: MapMetric) => void;
 	} = $props();
 
 	const uid = $props.id();
 
 	// ---- palette (inline, so the serialised SVG keeps its colours) ----
-	const PAPER = '#f6f2ea';
-	const CARD = '#fffcf7';
-	const INK = '#1e2a2b';
-	const INK3 = '#5f696c';
-	const LINE2 = '#c9bfad';
-	const BRICK = '#a0402e';
+	const PAPER = '#edf3f6';
+	const CARD = '#ffffff';
+	const INK = '#152c3b';
+	const INK3 = '#526776';
+	const LINE2 = '#b6cbd8';
+	const BRICK = '#a34418';
 	type Cls = 0 | 1 | 2 | 3 | 4;
 	const CLASSES: Cls[] = [0, 1, 2, 3, 4];
 	/** Rate: zero is paper (brick outline), then four greens. */
-	const RATE_FILL: Record<Cls, string> = { 0: PAPER, 1: '#d8e5dc', 2: '#a8c7b5', 3: '#6a9a84', 4: '#245446' };
+	const RATE_FILL: Record<Cls, string> = { 0: PAPER, 1: '#dcebf3', 2: '#a8cce0', 3: '#5894b8', 4: '#164e78' };
 	/** Specialty count: five greens, the lowest class is still a tone (0–5 is not "none"). */
-	const COUNT_FILL: Record<Cls, string> = { 0: '#e6ece7', 1: '#c3d8ca', 2: '#94b8a3', 3: '#5f9078', 4: '#245446' };
+	const COUNT_FILL: Record<Cls, string> = { 0: '#e3edf3', 1: '#c1d9e7', 2: '#8bb7d0', 3: '#4c88af', 4: '#164e78' };
 	const RATE_TEXT: Record<Cls, string> = { 0: '0, δεν καταγράφεται', 1: 'έως 1', 2: '1 έως 2', 3: '2 έως 4', 4: 'πάνω από 4' };
 	const SERIF = '"Source Serif 4", Georgia, serif';
 	const SANS = '"IBM Plex Sans", system-ui, sans-serif';
@@ -121,8 +127,12 @@
 	const spec = $derived(selection.specialtyId == null ? null : (idx.specById.get(selection.specialtyId) ?? null));
 	const rateMode = $derived(spec != null);
 	const specTotal = $derived(data.specialties.length);
-	const FILL = $derived(rateMode ? RATE_FILL : COUNT_FILL);
-	const CLASS_TEXT = $derived(rateMode ? RATE_TEXT : COUNT_CLASS_LABEL);
+	const waitMode = $derived(metric !== 'coverage');
+	const waits = $derived(spec ? prefectureWaits(data, selection) : new Map<number, WaitStats>());
+	const WAIT_FILL: Record<Cls, string> = { 0:'#f9e8b4', 1:'#eecb7e', 2:'#d9a04d', 3:'#ad672d', 4:'#743b1e' };
+	const WAIT_TEXT: Record<Cls, string> = { 0:'0 έως 7 ημ.', 1:'πάνω από 7 έως 14', 2:'πάνω από 14 έως 30', 3:'πάνω από 30 έως 60', 4:'πάνω από 60 ημ.' };
+	const FILL = $derived(waitMode ? WAIT_FILL : rateMode ? RATE_FILL : COUNT_FILL);
+	const CLASS_TEXT = $derived(waitMode ? WAIT_TEXT : rateMode ? RATE_TEXT : COUNT_CLASS_LABEL);
 
 	// Rate mode: one row per prefecture for the selected specialty and sectors.
 	const rows = $derived(
@@ -144,14 +154,17 @@
 		name: string;
 		row: Row | null;
 		covered: number;
-		cls: Cls | null;
+		cls: Cls | null; wait: WaitStats | null;
 	}
 	const infoById = $derived.by(() => {
 		const m = new Map<number, Info>();
 		for (const p of data.prefectures) {
 			const row = rowByPref.get(p.id) ?? null;
 			const n = covered.get(p.id) ?? 0;
-			m.set(p.id, { id: p.id, name: p.name, row, covered: n, cls: rateMode ? rateClass(row ? row.per100k : null) : countClass(n) });
+			const wait = waits.get(p.id) ?? null;
+			const days = wait ? (metric === 'first' ? wait.min : wait.mean) : null;
+			const waitClass: Cls | null = days == null ? null : days <= 7 ? 0 : days <= 14 ? 1 : days <= 30 ? 2 : days <= 60 ? 3 : 4;
+			m.set(p.id, { id: p.id, name: p.name, row, covered: n, wait, cls: waitMode ? waitClass : rateMode ? rateClass(row ? row.per100k : null) : countClass(n) });
 		}
 		return m;
 	});
@@ -164,8 +177,8 @@
 		}
 		return { counts, unknown };
 	});
-	const title = $derived(rateMode && spec ? `Σημεία με ραντεβού ανά 100.000 κατοίκους: ${titleCase(spec.name)}` : 'Ειδικότητες με ραντεβού σε κάθε νομό');
-	const subtitle = $derived(rateMode ? sectorsLabel(selection.sectors) : `από ${specTotal} ειδικότητες · ${sectorsLabel(selection.sectors)}`);
+	const title = $derived(waitMode ? `${metric === 'first' ? 'Πρώτο διαθέσιμο ραντεβού' : 'Μέσος χρόνος έως το πρώτο διαθέσιμο'}${spec ? ': ' + titleCase(spec.name) : ''}` : rateMode && spec ? `Σημεία με ραντεβού ανά 100.000 κατοίκους: ${titleCase(spec.name)}` : 'Ειδικότητες με ραντεβού σε κάθε νομό');
+	const subtitle = $derived(waitMode ? (spec ? 'Ημέρες από τη σάρωση · ' + sectorsLabel(selection.sectors) : 'Επίλεξε ειδικότητα για να συγκρίνεις αναμονές') : rateMode ? sectorsLabel(selection.sectors) : `από ${specTotal} ειδικότητες · ${sectorsLabel(selection.sectors)}`);
 	const scanDate = $derived(fmtDateLong(data.scan.at));
 
 	// Draw order: tones first, then the brick zeros (their outline must win), then the selection.
@@ -176,7 +189,7 @@
 		})
 	);
 	function isZero(id: number): boolean {
-		return rateMode && infoById.get(id)?.cls === 0;
+		return !waitMode && rateMode && infoById.get(id)?.cls === 0;
 	}
 	function fillOf(id: number): string {
 		const info = infoById.get(id);
@@ -230,7 +243,8 @@
 		const pref = idx.prefById.get(info.id);
 		const parts = [info.name];
 		if (pref) parts.push(`${fmtInt(pref.population)} κάτοικοι`);
-		if (!rateMode) parts.push(`${info.covered} από ${specTotal} ειδικότητες`);
+		if (waitMode) parts.push(info.wait ? `${fmtStat(metric === 'first' ? info.wait.min : info.wait.mean)} ημέρες · ${info.wait.n} σημεία με ημερομηνία` : 'χωρίς ημερομηνία');
+		else if (!rateMode) parts.push(`${info.covered} από ${specTotal} ειδικότητες`);
 		else if (!info.row) parts.push('χωρίς μέτρηση');
 		else parts.push(info.row.count === 0 ? 'δεν καταγράφεται στον κατάλογο' : `${plural(info.row.count, 'σημείο', 'σημεία')}, ${fmtPer100k(info.row.per100k)} ανά 100 χιλ.`);
 		return parts.join(' · ');
@@ -258,6 +272,10 @@
 	function exportCsv() {
 		const cols = sectorCols();
 		const meta = [[`${title} · ${subtitle}`], [`Σάρωση ${data.scan.at.slice(0, 10)} · ${data.scan.source}`], []];
+		if (waitMode) {
+			downloadText(`${fileStem()}-${metric}.csv`, toCsv([...meta, ['Νομός', 'Με ημερομηνία', 'Πρώτο (ημέρες)', 'Μέσος (ημέρες)'], ...sortedPrefs.map((p) => { const w = waits.get(p.id); return [p.name, w?.n ?? 0, w?.min ?? null, w?.mean ?? null]; })]));
+			return;
+		}
 		if (!rateMode) {
 			const head = ['Νομός', 'Έδρα', `Πληθυσμός ${data.populationYear}`, `Ειδικότητες με σημείο (από ${specTotal})`];
 			const body = sortedPrefs.map((p) => [p.name, p.seat.label, p.population, covered.get(p.id) ?? 0]);
@@ -367,6 +385,11 @@
 </script>
 
 <figure class="choro">
+ <div class="metric-switch" role="group" aria-label="Μέτρηση χάρτη">
+  {#each [{id:'coverage', label:'Κάλυψη'}, {id:'first', label:'Πρώτο ραντεβού'}, {id:'mean', label:'Μέση αναμονή'}] as item}
+   <button type="button" aria-pressed={metric === item.id} onclick={() => onMetric(item.id as MapMetric)}>{item.label}</button>
+  {/each}
+ </div>
 	<figcaption>
 		<h2>{title}</h2>
 		<p class="sub">{subtitle} · σάρωση {scanDate} · κάτοικοι {data.populationYear}</p>
@@ -456,7 +479,7 @@
 	<div class="legend" aria-label="Υπόμνημα">
 		{#each CLASSES as c (c)}
 			<span class="lg">
-				<span class="sw" style:background={FILL[c]} style:border-color={rateMode && c === 0 ? BRICK : 'var(--line-2)'}></span>
+				<span class="sw" style:background={FILL[c]} style:border-color={!waitMode && rateMode && c === 0 ? BRICK : 'var(--line-2)'}></span>
 				<span>{CLASS_TEXT[c]}</span>
 				<span class="n num">{classCounts.counts[c]}</span>
 			</span>
@@ -482,7 +505,9 @@
 	</div>
 
 	<p class="foot">
-		{#if rateMode}
+		{#if waitMode}
+   Ημέρες από τη σάρωση, όχι πραγματικός χρόνος εξυπηρέτησης. Απλός μέσος ανά σημείο με ημερομηνία, χωρίς στάθμιση δυναμικότητας. Η έλλειψη ημερομηνίας δεν είναι μηδενική αναμονή.
+  {:else if rateMode}
 			Οι κλάσεις είναι σταθερά διαστήματα, όχι πρότυπα. Μηδέν σημαίνει «δεν καταγράφεται στον κατάλογο».
 		{:else}
 			Οι κλάσεις είναι σταθερές, για να συγκρίνονται οι εβδομάδες. Διάλεξε ειδικότητα για την αναλογία ανά 100.000.
@@ -497,8 +522,11 @@
 	{@const r = info.row}
 	<dl class="figs">
 		{#if pref}<div><dt>Κάτοικοι</dt><dd class="num">{fmtInt(pref.population)}</dd></div>{/if}
-		{#if !rateMode}
-			<div><dt>Ειδικότητες με ραντεβού</dt><dd class="num">{info.covered} <span class="muted">από {specTotal}</span></dd></div>
+		{#if waitMode}
+   <div class="wide"><dt>{metric === 'first' ? 'Πρώτο ραντεβού' : 'Μέσος χρόνος έως το πρώτο διαθέσιμο'}</dt><dd>{info.wait ? `${fmtStat(metric === 'first' ? info.wait.min : info.wait.mean)} ημέρες` : 'Χωρίς ημερομηνία'}</dd></div>
+   <div class="wide"><dt>Σημεία με ημερομηνία / καταγεγραμμένα</dt><dd>{info.wait?.n ?? 0} / {r?.count ?? 0}</dd></div>
+  {:else if !rateMode}
+   <div><dt>Ειδικότητες με ραντεβού</dt><dd class="num">{info.covered} <span class="muted">από {specTotal}</span></dd></div>
 		{:else if !r}
 			<div class="wide"><dd class="muted"><span class="hatch swatch" aria-hidden="true"></span> Χωρίς μέτρηση για αυτόν τον νομό.</dd></div>
 		{:else}
@@ -519,6 +547,10 @@
 {/snippet}
 
 <style>
+ .metric-switch { display:flex; flex-wrap:wrap; gap:4px; background:var(--paper-2); padding:4px; border-radius:8px; width:fit-content; }
+ .metric-switch button { border:0; background:none; padding:.6rem .8rem; min-height:44px; border-radius:5px; font-size:.82rem; }
+ .metric-switch button[aria-pressed='true'] { background:var(--accent); color:white; }
+
 	.choro {
 		margin: 0;
 		display: grid;

@@ -1,5 +1,10 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
+	import { pushState, replaceState } from '$app/navigation';
+	import { readAtlasUrl, writeAtlasUrl, type MapMetric } from '$lib/atlas/url';
+	import AtlasNav from './components/AtlasNav.svelte';
+	import AtlasFooter from './components/AtlasFooter.svelte';
+	import ShareWidget from './components/ShareWidget.svelte';
 	import './components/atlas.css';
 	import type { AtlasReport, Metric, PrefectureBoundaries, Selection } from '$lib/atlas/types';
 	import { SECTORS } from '$lib/atlas/types';
@@ -28,7 +33,10 @@
 	let sort = $state<Metric>('count');
 	let matrixMetric = $state<Metric>('count');
 	let selectedKey = $state<string | null>(null);
-	let expandedWaitKey = $state<string | null>(null);
+	let mapMetric = $state<MapMetric>('coverage');
+	let copyStatus = $state('');
+	let syncingUrl = false;
+	let scrollLockUntil = 0;
 	let coverageExpanded = $state(false);
 	let matrixPrefectureId = $state<number | null>(null);
 	let compact = $state(true);
@@ -81,10 +89,10 @@
 			if (!alive || token !== requestToken) return;
 			selection = candidate;
 			pendingSelection = null;
-			expandedWaitKey = null;
+			syncUrl(true);
 			coverageExpanded = false;
 			if (request.openPointMap) pointMapOpen = true;
-			const requestedKey = request.focusKey !== undefined ? request.focusKey : focusKey(candidate);
+			const requestedKey = request.focusKey ?? null;
 			selectedKey = request.mapKey !== undefined ? request.mapKey : requestedKey;
 			if (requestedKey && compact) coverageExpanded = true;
 			await tick();
@@ -108,6 +116,7 @@
 
 	function focusPointMap() {
 		if (!pointHeading) return;
+		scrollLockUntil = Date.now() + 1200; syncUrl(false, 'atlas-point-map');
 		pointHeading.scrollIntoView({ behavior: typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
 		pointHeading.focus({ preventScroll: true });
 	}
@@ -116,7 +125,7 @@
 		requestSelection({ ...selection, ...partial, sectors: partial.sectors?.length ? [...partial.sectors] : [...selection.sectors] }, { focusKey: evidenceKey });
 	}
 	function pickPrefecture(prefectureId: number) { requestSelection({ ...selection, prefectureId }); }
-	function pickSpecialty(specialtyId: number) { requestSelection({ ...selection, specialtyId }); }
+	function pickSpecialty(specialtyId: number | null) { requestSelection({ ...selection, specialtyId }); }
 	function openCell(key: string) {
 		const parsed = parseKey(key);
 		if (!parsed) return;
@@ -130,7 +139,43 @@
 	function reset() { requestSelection({ ...DEFAULT, sectors: [...SECTORS] }, { focusKey: null, mapKey: null }); }
 	function toggleCoverage(key: string | null) { selectedKey = key != null && selectedKey !== key ? key : null; }
 	function changeSort(next: Metric) { sort = next; coverageExpanded = false; selectedKey = null; }
-	function navigate(section: Section) { if (section === 'details') toolsOpen = true; }
+	function syncUrl(push = false, hash?: string) {
+  if (!mounted || syncingUrl) return;
+  const url = writeAtlasUrl(new URL(window.location.href), selection, mapMetric);
+  if (hash) url.hash = hash;
+  if (url.href !== window.location.href) (push ? pushState : replaceState)(url, {});
+ }
+ function setMetric(metric: MapMetric) { mapMetric = metric; syncUrl(true); }
+ function navigate(section: Section) {
+  if (section === 'details') toolsOpen = true;
+  activeSection = section;
+  scrollLockUntil = Date.now() + 1200;
+  syncUrl(true, SECTION_IDS[section]);
+  void tick().then(() => document.getElementById(SECTION_IDS[section])?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
+ }
+ async function restoreUrl() {
+  if (!data) return;
+  syncingUrl = true;
+  ++requestToken;
+  pendingSelection = null; updating = false;
+  const state = readAtlasUrl(new URL(window.location.href), data);
+  selection = state.selection; mapMetric = state.metric; selectedKey = focusKey(selection);
+  coverageExpanded = selectedKey != null;
+  const hash = window.location.hash.slice(1);
+  if (hash === 'atlas-details') toolsOpen = true;
+  if (hash === 'atlas-point-map') pointMapOpen = true;
+  const section = SECTION_ORDER.find((s) => SECTION_IDS[s] === hash);
+  if (section) activeSection = section;
+  scrollLockUntil = Date.now() + 1200;
+  await tick(); await nextFrame();
+  if (!alive) return;
+  if (hash) document.getElementById(hash)?.scrollIntoView({ behavior: 'instant' });
+  syncingUrl = false;
+ }
+ async function copyView() {
+  try { await navigator.clipboard.writeText(window.location.href); copyStatus = 'Ο σύνδεσμος αντιγράφηκε'; }
+  catch { copyStatus = 'Αντέγραψε τη διεύθυνση από τη μπάρα του browser.'; }
+ }
 	function togglePointMap() {
 		pointMapOpen = !pointMapOpen;
 		if (!pointMapOpen) return;
@@ -138,13 +183,14 @@
 	}
 
 	function updateActiveSection() {
-		if (typeof window === 'undefined' || typeof document === 'undefined') return;
+		if (typeof window === 'undefined' || typeof document === 'undefined' || syncingUrl || Date.now() < scrollLockUntil) return;
 		const starts = SECTION_ORDER.map((section) => {
 			const element = document.getElementById(SECTION_IDS[section]);
 			return element ? { section, top: element.getBoundingClientRect().top } : null;
 		}).filter((start): start is { section: Section; top: number } => start != null);
 		const atBottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
-		activeSection = calculateActiveSection(starts, barHeight + 12, atBottom);
+		const next = calculateActiveSection(starts, barHeight + 12, atBottom);
+		if (activeSection !== next) { activeSection = next; syncUrl(false, SECTION_IDS[next]); }
 	}
 	function rebuildSectionObserver() {
 		sectionObserver?.disconnect();
@@ -171,6 +217,9 @@
 	onMount(() => {
 		mounted = true;
 		alive = true;
+		void restoreUrl();
+		window.addEventListener('popstate', restoreUrl);
+		window.addEventListener('hashchange', restoreUrl);
 		const media = window.matchMedia('(max-width: 899px)');
 		const syncCompact = () => (compact = media.matches);
 		syncCompact();
@@ -183,6 +232,8 @@
 		updateActiveSection();
 		return () => {
 			alive = false;
+			window.removeEventListener('popstate', restoreUrl);
+			window.removeEventListener('hashchange', restoreUrl);
 			media.removeEventListener?.('change', syncCompact);
 			window.removeEventListener('scroll', onScroll);
 			window.removeEventListener('resize', onResize);
@@ -195,7 +246,8 @@
 </script>
 
 <svelte:head>
-	<title>Άτλας πρόσβασης</title>
+	<title>Άτλας πρόσβασης · Η φροντίδα στον χάρτη</title>
+	<meta name="description" content="Χάρτης κάλυψης και διαθέσιμων ραντεβού ανά νομό και ειδικότητα. Εξερεύνησε αναμονές, μοιράσου φίλτρα και ενσωμάτωσε γραφήματα." />
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:wght@600;700&display=swap" />
@@ -204,22 +256,25 @@
 {#if !data}
 	<div class="atlas page"><header class="top"><h1>Άτλας πρόσβασης</h1><p class="lede">Δεν υπάρχει ακόμη σάρωση. Τρέξε <code>scripts/ministry-scan/weekly.sh</code>.</p></header></div>
 {:else}
-	<div class="atlas page">
-		<header class="top"><h1>Άτλας πρόσβασης</h1><p class="lede">Ποιες ειδικότητες έχουν ραντεβού σε κάθε νομό στον κατάλογο του Υπουργείου, και πόσο μακριά είναι η πλησιέστερη όταν λείπει.</p></header>
+	<div class="atlas site">
+  <a class="skip-link" href="#atlas-map">Μετάβαση στον χάρτη</a>
+  <AtlasNav {activeSection} onNavigate={navigate} onHeightChange={publishBarHeight} />
+  <main class="page">
+  <header class="top"><div><span class="section-kicker">Ένας ανοιχτός χάρτης της υγείας</span><h1>Η φροντίδα,<br />στον χάρτη.</h1><p class="lede">Πού βρίσκεις την ειδικότητα που χρειάζεσαι. Πόσο απέχει. Και πόσες ημέρες μέχρι το πρώτο ραντεβού.</p></div><div class="edition"><span>Η εικόνα της Ελλάδας</span><strong>{data.prefectures.length} νομοί<span> / </span>{data.specialties.length} ειδικότητες</strong><span>Σάρωση {new Date(data.scan.at).toLocaleDateString('el-GR', { timeZone: 'UTC' })}</span><button onclick={copyView}>Μοιράσου αυτή την προβολή ↗</button><span role="status">{copyStatus}</span></div></header>
 
-		<SelectionBar data={data} selection={pendingSelection ?? selection} onChange={requestSelection} onReset={reset} {activeSection} onNavigate={navigate} {updating} onHeightChange={publishBarHeight} />
+		<SelectionBar data={data} selection={pendingSelection ?? selection} onChange={requestSelection} onReset={reset} {updating} showNavigation={false} />
 
 		<div class="results" aria-busy={updating}>
-			<WeeklyBriefing report={data} onSelect={applyFinding} />
+			<div class="briefing"><WeeklyBriefing report={data} onSelect={applyFinding} /><ShareWidget widget="briefing" {selection} /></div>
 
 			<section id="atlas-map" class="mapblock" aria-label="Χάρτης κάλυψης">
-				<div class="choro"><PrefectureChoropleth {data} boundaries={page.boundaries} selection={selection} onSelect={pickPrefecture} /></div>
-				<div class="side"><MetricSummary {data} {selection} /></div>
+				<div class="choro"><PrefectureChoropleth {data} boundaries={page.boundaries} selection={selection} onSelect={pickPrefecture} metric={mapMetric} onMetric={setMetric} /><ShareWidget widget="coverage" {selection} metric={mapMetric} /></div>
+				<div class="side"><MetricSummary {data} {selection} /><ShareWidget widget="summary" {selection} /></div>
 			</section>
 
 			<div class="explorer">
 				<div class="pane list">
-					<CoverageList data={data} selection={selection} {sort} onSort={changeSort} {selectedKey} onSelect={toggleCoverage} {compact} expanded={coverageExpanded} onExpandedChange={(next) => (coverageExpanded = next)} />
+					<CoverageList data={data} selection={selection} {sort} onSort={changeSort} {selectedKey} onSelect={toggleCoverage} {compact} expanded={coverageExpanded} onExpandedChange={(next) => (coverageExpanded = next)} /><ShareWidget widget="list" {selection} />
 				</div>
 				<div class="pane map">
 					<div class="point-map-controls">
@@ -228,32 +283,33 @@
 					{#if !compact || pointMapOpen}
 						<section id="atlas-point-map" class="point-map-panel" aria-labelledby="atlas-point-map-heading">
 							<h2 id="atlas-point-map-heading" tabindex="-1" bind:this={pointHeading}>Χάρτης σημείων</h2>
-							<AccessMap data={data} selection={selection} {selectedKey} onSelect={openCell} />
+							<AccessMap data={data} selection={selection} {selectedKey} onSelect={openCell} /><ShareWidget widget="points" {selection} />
 						</section>
 					{/if}
 				</div>
 			</div>
 
-			<WaitDistribution data={data} selection={selection} expandedKey={expandedWaitKey} onToggle={(key) => (expandedWaitKey = expandedWaitKey === key ? null : key)} onShowOnMap={showWaitOnMap} />
+			<div class="wait-section"><WaitDistribution data={data} {selection} onPickSpecialty={pickSpecialty} onShowOnMap={showWaitOnMap} /><ShareWidget widget="waits" {selection} /></div>
 
 			<details id="atlas-details" class="more" bind:open={toolsOpen} ontoggle={() => { toolsOpen = (document.getElementById('atlas-details') as HTMLDetailsElement | null)?.open ?? toolsOpen; void tick().then(() => { rebuildSectionObserver(); updateActiveSection(); }); }}>
 				<summary>Αναλυτικά</summary>
-				<CoverageMatrix data={data} sectors={selection.sectors} metric={matrixMetric} onMetric={(metric) => (matrixMetric = metric)} onSelect={openCell} {compact} prefectureId={effectiveMatrixPrefectureId} onPrefectureChange={(id) => (matrixPrefectureId = id)} />
-				<section class="pair"><SpecialtyCoverageBars data={data} sectors={selection.sectors} selectedSpecialtyId={selection.specialtyId} onSelect={pickSpecialty} /><CoverageRanking data={data} selection={selection} onSelect={pickPrefecture} /></section>
-				<ScanChangeChart report={data} />
+				<CoverageMatrix data={data} sectors={selection.sectors} metric={matrixMetric} onMetric={(metric) => (matrixMetric = metric)} onSelect={openCell} {compact} prefectureId={effectiveMatrixPrefectureId} onPrefectureChange={(id) => (matrixPrefectureId = id)} /><ShareWidget widget="matrix" {selection} />
+				<section class="pair"><div><SpecialtyCoverageBars data={data} sectors={selection.sectors} selectedSpecialtyId={selection.specialtyId} onSelect={pickSpecialty} /><ShareWidget widget="specialties" {selection} /></div><div><CoverageRanking data={data} selection={selection} onSelect={pickPrefecture} /><ShareWidget widget="ranking" {selection} /></div></section>
+				<ScanChangeChart report={data} /><ShareWidget widget="changes" {selection} />
 			</details>
 
-			<MethodologyBlock report={data} />
+			<MethodologyBlock report={data} /><AtlasFooter />
 		</div>
-	</div>
+	</main></div>
 {/if}
 
 <style>
-	.page { min-height: 100dvh; padding: clamp(1.25rem, 4vw, 2.5rem) clamp(1rem, 4vw, 2rem) 4rem; display: grid; gap: 1.6rem; max-width: 1280px; margin: 0 auto; min-width: 0; }
-	.top { max-width: 640px; min-width: 0; }
-	h1 { font-size: clamp(2rem, 5vw, 2.8rem); line-height: 1.05; margin-bottom: 0.6rem; }
+	.page { min-height: 100dvh; padding: clamp(1.25rem, 4vw, 2.5rem) clamp(1rem, 4vw, 2rem) 4rem; display: grid; gap: 1.6rem; max-width: 1360px; margin: 0 auto; min-width: 0; }
+	.top { display:grid; grid-template-columns:1.5fr 1fr; gap:2rem; align-items:end; min-width:0; padding:1.8rem 0 1.5rem; border-bottom:1px solid var(--line-2); }
+ .edition { display:grid; gap:.7rem; justify-self:end; font-size:.8rem; color:var(--ink-3); } .edition strong { font-size:1.1rem; color:var(--ink); font-weight:500; } .edition strong span { color:var(--line-2); padding:0 .3rem; } .edition button { text-align:left; padding:0; min-height:44px; background:none; border:0; color:var(--accent); font-size:.8rem; }
+	h1 { font-size: clamp(2.8rem, 6vw, 4.8rem); line-height: 1.05; margin-bottom: 0.6rem; }
 	.lede { margin: 0; color: var(--ink-2); max-width: 56ch; text-wrap: pretty; }
-	.results { display: grid; gap: 1.6rem; min-width: 0; transition: opacity 120ms ease; }
+	.results { display: grid; gap: 3rem; min-width: 0; transition: opacity 120ms ease; }
 	.results[aria-busy='true'] { opacity: 0.72; }
 	.mapblock, .pair, .explorer { display: grid; gap: 1.5rem; align-items: start; min-width: 0; }
 	.point-map-panel { display: grid; gap: 0.65rem; min-width: 0; scroll-margin-top: calc(var(--atlas-bar-height, 0px) + 12px); }
@@ -270,7 +326,8 @@
 		.mapblock .side, .pane.map { position: sticky; top: calc(var(--atlas-bar-height, 0px) + 12px); }
 	}
 	@media (max-width: 899px) {
-		.results { gap: 1.3rem; }
+		.results { gap: 2rem; }
+ .top { grid-template-columns:1fr; padding:.5rem 0 1rem; gap:1.2rem; } .edition { justify-self:start; gap:.3rem; }
 		.point-map-panel h2 { margin-top: 0.2rem; }
 	}
 </style>

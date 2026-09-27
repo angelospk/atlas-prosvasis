@@ -278,8 +278,10 @@ export function nearestFor(idx: AtlasIndex, cell: CoverageCell, sectors: readonl
 /** Display name. The public data names public units only; a private or ΕΟΠΥΥ doctor
  *  arrives without a name and is shown by what they are. */
 export function providerName(p: Provider): string {
-	if (p.name) return titleCase(p.name);
-	return p.sector === 'eopyy' ? 'Ιατρός συμβεβλημένος με τον ΕΟΠΥΥ' : 'Ιδιώτης ιατρός';
+	// Privacy: private and ΕΟΠΥΥ doctors are never named, whatever the data carries.
+	if (p.sector === 'eopyy') return 'Ιατρός συμβεβλημένος με τον ΕΟΠΥΥ';
+	if (p.sector === 'private') return 'Ιδιώτης ιατρός';
+	return p.name ? titleCase(p.name) : 'Δημόσια μονάδα';
 }
 
 /** A provider's first free date for one specialty (availability differs per specialty). */

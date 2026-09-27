@@ -4,23 +4,23 @@
    scope and the same mark must look identical in list, map, matrix and panel. */
 
 .atlas {
-	--paper: #f6f2ea;
-	--paper-2: #ede7db;
-	--card: #fffcf7;
-	--ink: #1e2a2b;
-	--ink-2: #4b5557;
-	--ink-3: #5f696c; /* 5.05:1 on --paper, 5.51:1 on --card (AA) */
-	--line: #ddd5c6;
-	--line-2: #c9bfad;
-	--accent: #2f6b5b;
-	--accent-d: #245446;
-	--accent-soft: #e3ece6;
-	--urgent: #a0402e;
-	--urgent-soft: #f4e5df;
+	--paper: #edf3f6;
+	--paper-2: #e0eaf0;
+	--card: #ffffff;
+	--ink: #152c3b;
+	--ink-2: #405c6e;
+	--ink-3: #526776; /* 5.05:1 on --paper, 5.51:1 on --card (AA) */
+	--line: #cbd8e0;
+	--line-2: #b6cbd8;
+	--accent: #24638e;
+	--accent-d: #164e78;
+	--accent-soft: #dfecf4;
+	--urgent: #a34418;
+	--urgent-soft: #f7e8dc;
 	--warn: #7a5410;
 	--warn-soft: #f3e9d2;
 	--shadow: 0 1px 2px rgba(60, 45, 20, 0.06), 0 8px 20px -14px rgba(60, 45, 20, 0.22);
-	--serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+	--serif: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
 	--sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
 	--r-ctl: 8px;
 	--r-box: 14px;
@@ -175,29 +175,29 @@
 	height: 12px;
 	border-radius: 2px;
 	box-sizing: border-box;
-	border: 2px solid #1e2a2b;
-	background: #1e2a2b;
-	box-shadow: 0 0 0 1.5px #fffcf7;
+	border: 2px solid #152c3b;
+	background: #152c3b;
+	box-shadow: 0 0 0 1.5px #ffffff;
 }
 .atlas-pin.pfy > span {
-	border-color: #2f6b5b;
-	background: #2f6b5b;
+	border-color: #24638e;
+	background: #24638e;
 }
 .atlas-pin.eopyy > span {
-	border-color: #2f6b5b;
-	background: #fffcf7;
+	border-color: #24638e;
+	background: #ffffff;
 }
 .atlas-pin.private > span {
-	border-color: #5f696c;
-	background: #fffcf7;
+	border-color: #526776;
+	background: #ffffff;
 }
 /* Ministry pin missing or wrong: the town centre stands in. A dashed ring says so. */
 .atlas-pin.approx > span {
-	outline: 1.5px dashed #5f696c;
+	outline: 1.5px dashed #526776;
 	outline-offset: 2px;
 }
 .atlas-pin.sel > span {
-	box-shadow: 0 0 0 1.5px #fffcf7, 0 0 0 3.5px #2f6b5b;
+	box-shadow: 0 0 0 1.5px #ffffff, 0 0 0 3.5px #24638e;
 }
 
 .atlas-cluster {
@@ -210,9 +210,9 @@
 	width: 100%;
 	height: 100%;
 	border-radius: 50%;
-	background: #fffcf7;
-	border: 1.5px solid #4b5557;
-	color: #1e2a2b;
+	background: #ffffff;
+	border: 1.5px solid #405c6e;
+	color: #152c3b;
 	font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
 	font-size: 0.72rem;
 	font-weight: 600;
@@ -221,10 +221,10 @@
 }
 
 .atlas-km {
-	background: #fffcf7;
-	border: 1px solid #c9bfad;
+	background: #ffffff;
+	border: 1px solid #b6cbd8;
 	border-radius: 4px;
-	color: #1e2a2b;
+	color: #152c3b;
 	font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
 	font-size: 0.78rem;
 	font-variant-numeric: tabular-nums;
@@ -268,3 +268,11 @@
 		scroll-behavior: auto !important;
 	}
 }
+
+.atlas.site { background-image:radial-gradient(#9fb7c52e .8px,transparent .8px); background-size:12px 12px; }
+.atlas .section-kicker { display:block; color:var(--accent); font-size:.75rem; font-weight:600; margin-bottom:.65rem; letter-spacing:.025em; }
+.atlas .skip-link { position:fixed; top:-100px; left:1rem; z-index:100; background:white; padding:1rem; }
+.atlas .skip-link:focus { top:.5rem; }
+.atlas button { transition:background-color .15s,color .15s,border-color .15s; }
+.atlas button:active:not(:disabled) { transform:translateY(1px); }
+.atlas #atlas-map,.atlas #atlas-list,.atlas #atlas-details { scroll-margin-top:calc(var(--atlas-bar-height,0px) + 16px); }

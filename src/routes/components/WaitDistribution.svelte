@@ -1,182 +1,119 @@
 <script lang="ts">
-	import type { AtlasData, Selection } from '$lib/atlas/types';
-	import { buildIndex, fmtDay, fmtInt, fmtStat, parseKey, selectionLabel, toCsv, waitRows } from './format';
-	import { downloadText } from './download';
-
-	let {
-		data,
-		selection,
-		expandedKey = null,
-		onToggle = (_key: string) => {},
-		onShowOnMap = (_key: string) => {}
-	}: {
-		data: AtlasData;
-		selection: Selection;
-		expandedKey?: string | null;
-		onToggle?: (key: string) => void;
-		onShowOnMap?: (key: string) => void;
-	} = $props();
-
-	const uid = $props.id();
-	const SHOW = 12;
-	const idx = $derived(buildIndex(data));
-	const rows = $derived(waitRows(data, idx, selection));
-	const byPrefecture = $derived(selection.specialtyId != null && selection.prefectureId == null);
-	let showingAll = $state(false);
-	const shown = $derived(showingAll ? rows : rows.slice(0, SHOW));
-	const axisMax = $derived(Math.max(7, Math.ceil(Math.max(0, ...rows.map((r) => r.stats.max)) / 7) * 7));
-	const ticks = $derived.by(() => {
-		const step = axisMax <= 28 ? 7 : axisMax <= 84 ? 14 : 30;
-		const out: number[] = [];
-		for (let d = 0; d <= axisMax; d += step) out.push(d);
-		return out;
-	});
-	const pct = (days: number) => `${(days / axisMax) * 100}%`;
-	const explanationId = (key: string) => `${uid}-wait-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
-
-	function exportCsv() {
-		const head = [byPrefecture ? 'Νομός' : 'Ειδικότητα', 'Σημεία', 'Με ημερομηνία', 'Ελάχιστο', '25%', 'Διάμεσος', 'Μέσος όρος', '75%', 'Μέγιστο'];
-		const body = rows.map((r) => {
-			const s = r.stats;
-			return [r.name, r.sites, s.n, s.min, s.q1, s.median, Math.round(s.mean * 10) / 10, s.q3, s.max];
-		});
-		const meta = [['Σάρωση', data.scan.at.slice(0, 10), data.scan.source]];
-		downloadText(`atlas-αναμονή-${data.scan.at.slice(0, 10)}.csv`, toCsv([...meta, head, ...body]));
-	}
+ import type { AtlasData, Selection } from '$lib/atlas/types';
+ import { buildIndex, fmtDay, fmtStat, parseKey, plural, providerName, selectionLabel, titleCase, toCsv, waitRows } from './format';
+ import { waitPoints, waitSamples, type WaitPoint } from './waits';
+ import { downloadText } from './download';
+ let { data, selection, onShowOnMap = (_key: string) => {}, onPickSpecialty = (_id: number | null) => {} }: {
+  data: AtlasData; selection: Selection; onShowOnMap?: (key: string) => void; onPickSpecialty?: (id: number | null) => void;
+ } = $props();
+ const uid = $props.id();
+ const idx = $derived(buildIndex(data));
+ const rows = $derived(waitRows(data, idx, selection));
+ let showingAll = $state(false);
+ let selected = $state<{ key: string; days: number } | null>(null);
+ // Measured in the browser; one 44 px tap target plus a little air, as a share of the axis.
+ let plotWidth = $state(0);
+ const gap = $derived(plotWidth > 0 ? Math.min(0.5, 48 / plotWidth) : 0.13);
+ const axisMax = $derived(Math.max(7, Math.ceil(Math.max(0, ...rows.map((r) => r.stats.max)) / 7) * 7));
+ const plotted = $derived(rows.map((r) => {
+  const key = parseKey(r.key)!;
+  const points = waitPoints(waitSamples(data, { ...selection, ...key }), axisMax, gap);
+  return { ...r, points, height: Math.max(1, ...points.map((p) => p.lane + 1)) * 46 + 14 };
+ }));
+ const shown = $derived(showingAll ? plotted : plotted.slice(0, 12));
+ const activeRow = $derived(plotted.find((r) => r.key === selected?.key));
+ const activePoint = $derived(activeRow?.points.find((p) => p.days === selected?.days));
+ const mapKey = $derived(activeRow?.key ?? (selection.specialtyId != null ? `${selection.prefectureId ?? 0}:${selection.specialtyId}` : null));
+ const pct = (days: number) => `${days / axisMax * 100}%`;
+ function describe(point: WaitPoint) {
+  const cities = [...new Set(point.samples.map((s) => titleCase(s.provider.city) || 'Χωρίς πόλη'))];
+  return `${plural(point.days, 'ημέρα', 'ημέρες')} · ${cities.join(', ')} · ${plural(point.samples.length, 'σημείο', 'σημεία')}`;
+ }
+ function exportCsv() {
+  downloadText(`atlas-αναμονή-${data.scan.at.slice(0, 10)}.csv`, toCsv([
+   ['Σάρωση', data.scan.at.slice(0, 10), data.scan.source],
+   ['Νομός / ειδικότητα', 'Σημεία', 'Με ημερομηνία', 'Πρώτο', 'Μέσος όρος', 'Διάμεσος', 'Μέγιστο'],
+   ...rows.map((r) => [r.name, r.sites, r.stats.n, r.stats.min, r.stats.mean, r.stats.median, r.stats.max])
+  ]));
+ }
 </script>
 
-<section id="atlas-waits" class="waits" aria-labelledby={`${uid}-waits-title`}>
-	<header class="head">
-		<div>
-			<h2 id={`${uid}-waits-title`}>Αναμονή ραντεβού</h2>
-			<p class="sub">{fmtDay(data.scan.at)} μία τιμή · {selectionLabel(idx, selection)}</p>
-		</div>
-		<p class="sample-note">Με ημερομηνία / σύνολο σημείων.</p>
-	</header>
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') selected = null; }} />
 
-	{#if rows.length === 0}
-		<p class="empty">Κανένα σημείο με ημερομηνία ραντεβού για αυτή την επιλογή.</p>
-	{:else}
-		<div class="legend" aria-label="Υπόμνημα αναμονής">
-			<span><i class="lg-point"></i>Σημείο</span>
-			<span><i class="lg-mean"></i>Μέσος όρος</span>
-			<span><i class="lg-median"></i>Διάμεσος</span>
-			<span><i class="lg-box"></i>Μεσαίο 50%</span>
-			<span><i class="lg-whisk"></i>Συνήθες εύρος</span>
-			<span><i class="lg-out"></i>Ακραίες τιμές</span>
-		</div>
-		<div class="axis" aria-hidden="true">
-			<span class="axis-name"></span>
-			<span class="scale">{#each ticks as tick (tick)}<span class="tick" style:left={pct(tick)}>{tick}</span>{/each}</span>
-			<span class="axis-value">ημέρες</span>
-		</div>
-		<p class="note">Πάτησε μια γραμμή για τις τιμές.</p>
-		<ol class="list">
-			{#each shown as r (r.key)}
-				{@const s = r.stats}
-				{@const open = expandedKey === r.key}
-				{@const controlId = explanationId(r.key)}
-				<li class:open>
-					<button type="button" class="row" data-key={r.key} aria-expanded={open} aria-controls={controlId} onclick={() => onToggle(r.key)}>
-						<span class="name">{r.name}</span>
-						<span class="plot" aria-hidden="true">
-							{#each ticks as tick (tick)}<span class="grid" style:left={pct(tick)}></span>{/each}
-							{#if s.n >= 5}
-								<span class="whisk" style:left={pct(s.lo)} style:width={pct(s.hi - s.lo)}></span>
-								<span class="cap" style:left={pct(s.lo)}></span>
-								<span class="cap" style:left={pct(s.hi)}></span>
-								<span class="box" style:left={pct(s.q1)} style:width={pct(Math.max(s.q3 - s.q1, 0.4))}></span>
-								<span class="median" style:left={pct(s.median)}></span>
-								{#each s.outliers as outlier, i (i)}<span class="outlier" style:left={pct(outlier)}></span>{/each}
-							{:else}
-								{#each r.values as value, i (i)}<span class="sample-dot" style={`left:${pct(value)};top:calc(50% + ${(i - (s.n - 1) / 2) * 8 - (s.n === 1 ? 5 : 0)}px)`}></span>{/each}
-							{/if}
-							<span class="mean" style:left={pct(s.mean)}></span>
-						</span>
-						<span class="value"><b>{s.n < 5 ? `Μέσος ${fmtStat(s.mean)} ημ.` : `Διάμεσος ${fmtStat(s.median)} ημ.`}</b><span>{fmtInt(s.n)}/{fmtInt(r.sites)} σημεία</span></span>
-					</button>
-					<div id={controlId} class="explanation" hidden={!open}>
-						<dl>
-							<div><dt>Διάμεσος:</dt><dd>{fmtStat(s.median)} ημ.</dd></div>
-							<div><dt>Μέσος όρος:</dt><dd>{fmtStat(s.mean)} ημ.</dd></div>
-							<div><dt>Εύρος:</dt><dd>{fmtStat(s.min)} έως {fmtStat(s.max)} ημ.</dd></div>
-							<div><dt>Σημεία με ημερομηνία:</dt><dd>{fmtInt(s.n)} από {fmtInt(r.sites)}</dd></div>
-						</dl>
-						<p>Διάμεσος: η μεσαία τιμή. Μέσος όρος: το άθροισμα διαιρεμένο με τα σημεία. Εύρος: από τη μικρότερη έως τη μεγαλύτερη τιμή.</p>
-						<button type="button" class="map-action" onclick={() => onShowOnMap(r.key)}>Δες στον χάρτη</button>
-						<span class="action-note">Αλλάζει την επιλογή στα φίλτρα.</span>
-					</div>
-				</li>
-			{/each}
-		</ol>
-		{#if rows.length > SHOW}
-			<button type="button" class="more" aria-expanded={showingAll} onclick={() => (showingAll = !showingAll)}>{showingAll ? 'Λιγότερες' : 'Περισσότερες'}</button>
-		{/if}
-		<div class="tools"><span></span><button type="button" class="tool" onclick={exportCsv}>CSV</button></div>
-	{/if}
+<section id="atlas-waits" class="waits" aria-labelledby={`${uid}-title`}>
+ <header class="head">
+  <div><span class="section-kicker">Ο χρόνος μέχρι το ραντεβού</span><h2 id={`${uid}-title`}>Πόσες ημέρες περιμένεις;</h2></div>
+  <button class="tool" onclick={exportCsv}>Λήψη CSV ↓</button>
+ </header>
+ <p class="sub">Ημέρες από τη σάρωση της {fmtDay(data.scan.at)} · {selectionLabel(idx, selection)}</p>
+ <p class="note">Κάθε τελεία δείχνει σημεία με την ίδια αναμονή. Πέρασε από πάνω ή πάτησέ τη για πόλη και μονάδα.</p>
+ <div class="legend"><span><i></i>Ημέρες έως το πρώτο ραντεβού</span><span><i class="diamond"></i>Μέσος όρος</span></div>
+ {#if rows.length === 0}
+  <p class="empty">Κανένα σημείο με ημερομηνία ραντεβού για αυτή την επιλογή.</p>
+ {:else}
+  <ol class="list">
+   {#each shown as row (row.key)}
+    <li class="row" data-key={row.key}>
+     <div class="row-heading"><h3>{row.name}</h3><span>{row.stats.n} / {row.sites} με ημερομηνία</span></div>
+     <div class="plot" style:height={`${row.height}px`} bind:clientWidth={plotWidth}>
+      <div class="baseline" aria-hidden="true"></div>
+      {#each row.points as point (point.days)}
+       <button class="sample-dot" class:chosen={selected?.key === row.key && selected.days === point.days}
+        style:left={pct(point.days)} style:top={`${point.lane * 46}px`}
+        title={describe(point)} aria-label={`${row.name} · ${describe(point)}`}
+        aria-pressed={selected?.key === row.key && selected.days === point.days}
+        onclick={() => selected = selected?.key === row.key && selected.days === point.days ? null : { key: row.key, days: point.days }}>
+        <b>{point.days}</b><span class="dot"></span>
+        {#if point.samples.length > 1}<small>×{point.samples.length}</small>{/if}
+       </button>
+      {/each}
+      <span class="mean" style:left={pct(row.stats.mean)} title={`Μέσος όρος ${fmtStat(row.stats.mean)} ημέρες`}></span>
+     </div>
+     <div class="values"><strong>{fmtStat(row.stats.mean)} <small>ημ. μέσος</small></strong><span>Πρώτο {row.stats.min} · διάμεσος {fmtStat(row.stats.median)}</span></div>
+     {#if activePoint && activeRow?.key === row.key}
+      <div class="inspector" aria-live="polite">
+       <div class="inspection-title"><strong>{plural(activePoint.days, 'ημέρα', 'ημέρες')}</strong><span>{activeRow.name} · {plural(activePoint.samples.length, 'σημείο', 'σημεία')}</span><button class="tool" onclick={() => selected = null} aria-label="Κλείσιμο λεπτομερειών">Κλείσιμο ×</button></div>
+       <ul>{#each activePoint.samples as { provider } (provider.id)}<li><b>{titleCase(provider.city) || 'Χωρίς πόλη'}</b><span>{providerName(provider)}</span>{#if provider.approx}<small>Θέση στον χάρτη κατά προσέγγιση</small>{/if}</li>{/each}</ul>
+      </div>
+     {/if}
+    </li>
+   {/each}
+  </ol>
+  {#if rows.length > 12}<button class="more tool" aria-expanded={showingAll} onclick={() => showingAll = !showingAll}>{showingAll ? 'Λιγότερες γραμμές' : `Όλες οι γραμμές (${rows.length})`}</button>{/if}
+ {/if}
+ <div class="actions">
+  <label for={`${uid}-specialty`}>Επίλεξε ειδικότητα
+   <select id={`${uid}-specialty`} value={selection.specialtyId ?? ''} onchange={(e) => { selected = null; onPickSpecialty(e.currentTarget.value ? Number(e.currentTarget.value) : null); }}>
+    <option value="">Όλες οι ειδικότητες</option>{#each data.specialties as specialty (specialty.id)}<option value={specialty.id}>{specialty.name}</option>{/each}
+   </select>
+  </label>
+  <button class="map-action tool" disabled={!mapKey} onclick={() => { if (mapKey) onShowOnMap(mapKey); }}>Δες στον χάρτη ↗</button>
+ </div>
+ <p class="note">Μετράμε το πρώτο διαθέσιμο ραντεβού κάθε σημείου κατά τη σάρωση, όχι τον πραγματικό χρόνο εξυπηρέτησης. Τα σημεία χωρίς ημερομηνία δεν μπαίνουν στον μέσο όρο.</p>
 </section>
 
 <style>
-	.waits { display: grid; gap: 0.65rem; min-width: 0; scroll-margin-top: calc(var(--atlas-bar-height, 0px) + 12px); }
-	.head { display: flex; align-items: end; justify-content: space-between; gap: 1rem; min-width: 0; }
-	h2 { font-size: clamp(1.35rem, 3vw, 1.8rem); }
-	.sub, .sample-note, .note, .empty { margin: 0; color: var(--ink-3); font-size: 0.82rem; }
-	.sample-note { text-align: right; }
-	.legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; color: var(--ink-2); font-size: 0.76rem; }
-	.legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
-	.legend i { display: inline-block; width: 14px; height: 10px; position: relative; flex: none; }
-	.lg-point, .lg-out { width: 8px !important; height: 8px !important; border-radius: 50%; background: var(--ink-2); }
-	.lg-out { background: var(--paper); border: 1px solid var(--ink-2); }
-	.lg-mean { width: 9px !important; height: 9px !important; background: var(--urgent); transform: rotate(45deg); }
-	.lg-median { width: 2px !important; background: var(--ink); }
-	.lg-box { background: color-mix(in srgb, var(--accent) 28%, var(--paper)); border: 1px solid var(--accent); }
-	.lg-whisk { height: 1px !important; margin-top: 5px; background: var(--ink-3); }
-	.axis, .row { display: grid; grid-template-columns: minmax(0, 12rem) minmax(0, 1fr) minmax(8rem, 11rem); gap: 0.8rem; align-items: center; min-width: 0; }
-	.axis { padding: 0 0.4rem; color: var(--ink-3); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
-	.scale { position: relative; height: 1rem; min-width: 0; }
-	.tick { position: absolute; transform: translateX(-50%); }
-	.axis-value { text-align: right; }
-	.list { list-style: none; padding: 0; margin: 0; min-width: 0; }
-	.list li { border-bottom: 1px solid var(--line); min-width: 0; }
-	.row { width: 100%; min-height: 58px; padding: 0.45rem 0.4rem; border: 0; border-bottom: 1px solid transparent; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
-	.row:hover, li.open .row { background: var(--card); }
-	.name { min-width: 0; overflow-wrap: anywhere; font-size: 0.95rem; font-weight: 500; line-height: 1.25; }
-	.plot { position: relative; height: 20px; min-width: 0; margin-inline: 6px; }
-	.plot > span { position: absolute; }
-	.grid { top: 0; bottom: 0; width: 1px; background: var(--line); }
-	.whisk { top: 50%; height: 1px; background: var(--ink-3); }
-	.cap { top: 4px; bottom: 4px; width: 1px; background: var(--ink-3); }
-	.box { top: 2px; bottom: 2px; background: color-mix(in srgb, var(--accent) 28%, var(--paper)); border: 1px solid var(--accent); border-radius: 2px; }
-	.median { top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ink); }
-	.mean { top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; background: var(--urgent); transform: rotate(45deg); }
-	.sample-dot, .outlier { width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--ink-2); }
-	.outlier { background: var(--paper); border: 1px solid var(--ink-2); }
-	.value { min-width: 0; display: grid; justify-items: end; gap: 0.1rem; text-align: right; font-variant-numeric: tabular-nums; }
-	.value b { font-weight: 600; white-space: nowrap; }
-	.value span { color: var(--ink-3); font-size: 0.75rem; white-space: nowrap; }
-	.explanation { margin: 0 0 0.7rem; padding: 0.7rem 0.5rem 0.85rem 1rem; border-left: 2px solid var(--accent); background: var(--card); font-size: 0.86rem; }
-	.explanation dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.4rem 1rem; margin: 0; }
-	.explanation dl div { min-width: 0; }
-	.explanation dt { color: var(--ink-3); font-size: 0.78rem; }
-	.explanation dd { margin: 0.1rem 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
-	.explanation p { margin: 0.75rem 0; color: var(--ink-2); }
-	.map-action, .more, .tool { min-height: 44px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); padding: 0 0.8rem; color: var(--ink-2); font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
-	.action-note { margin-left: 0.55rem; color: var(--ink-3); font-size: 0.78rem; }
-	.more { justify-self: start; }
-	.tools { display: flex; justify-content: space-between; align-items: center; gap: 0.7rem; }
-	@media (max-width: 899px) {
-		.head { display: block; }
-		.sample-note { margin-top: 0.25rem; text-align: left; }
-		.axis, .row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'name value' 'plot plot'; gap: 0.25rem 0.7rem; }
-		.axis { display: none; }
-		.row { padding: 0.7rem 0.4rem; }
-		.name { grid-area: name; }
-		.value { grid-area: value; }
-		.plot { grid-area: plot; width: auto; margin-inline: 6px; }
-		.explanation dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-	}
-	@media (max-width: 420px) {
-		.explanation dl { grid-template-columns: minmax(0, 1fr); }
-		.action-note { display: block; margin: 0.35rem 0 0; }
-	}
+ .waits { display:grid; gap:1rem; min-width:0; scroll-margin-top:calc(var(--atlas-bar-height, 0px) + 16px); }
+ .head,.row-heading,.inspection-title { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
+ h2 { font-size:clamp(1.5rem,3vw,2.2rem); } .sub,.note { margin:0; font-size:.83rem; color:var(--ink-3); }
+ .legend { display:flex; gap:1.4rem; flex-wrap:wrap; font-size:.76rem; color:var(--ink-2); }
+ .legend span { display:flex; gap:.5rem; align-items:center; } .legend i,.dot { width:8px; height:8px; background:var(--accent); border-radius:50%; display:block; }
+ .legend .diamond { background:var(--urgent); border-radius:0; transform:rotate(45deg); }
+ .list { list-style:none; padding:0; margin:0; } .row { border-top:1px solid var(--line); display:grid; grid-template-columns:minmax(120px,.9fr) minmax(0,2fr) minmax(130px,.7fr); align-items:center; gap:1.5rem; padding:1rem 0; }
+ .row-heading { display:grid; gap:.4rem; } .row-heading h3 { font:600 .95rem var(--sans); } .row-heading>span,.values>span { font-size:.73rem; color:var(--ink-3); }
+ .plot { position:relative; min-width:0; margin-inline:22px; background:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px 25%); }
+ .baseline { position:absolute; inset:auto -12px 0; height:1px; background:var(--line-2); }
+ .sample-dot { position:absolute; width:44px; min-height:44px; transform:translateX(-50%); display:flex; flex-direction:column; gap:2px; align-items:center; padding:0; border:0; background:transparent; font-size:.75rem; }
+ .sample-dot b { font-weight:600; background:var(--paper); padding:0 3px; line-height:1.3; } .sample-dot small { font-size:.6rem; color:var(--ink-3); }
+ .sample-dot:hover .dot,.sample-dot.chosen .dot { box-shadow:0 0 0 4px var(--accent-soft); background:var(--accent-d); } .sample-dot.chosen b { background:var(--accent); color:white; border-radius:3px; }
+ .mean { position:absolute; bottom:-4px; width:9px; height:9px; background:var(--urgent); transform:translateX(-50%) rotate(45deg); }
+ .values { display:grid; gap:.4rem; text-align:right; } .values strong { font-size:1.35rem; font-weight:500; } .values small { font-size:.74rem; font-weight:400; }
+ .inspector { grid-column:1/-1; padding:1rem 1.2rem; border-left:3px solid var(--accent); background:var(--accent-soft); min-height:72px; } 
+ .inspection-title { flex-wrap:wrap; font-size:.86rem; } .inspection-title strong { font-size:1.3rem; } .inspector ul { list-style:none; padding:0; margin:.7rem 0 0; max-height:220px; overflow:auto; display:grid; gap:.6rem; } .inspector li { display:grid; gap:.15rem; font-size:.85rem; } .inspector small { color:var(--ink-3); }
+ .actions { display:flex; gap:1rem; align-items:end; flex-wrap:wrap; } .actions label { display:grid; gap:.35rem; font-size:.78rem; min-width:0; flex:1; max-width:400px; }
+ select { width:100%; min-width:0; height:44px; border:1px solid var(--line-2); border-radius:var(--r-ctl); padding:0 .6rem; color:var(--ink); background:var(--card); font:inherit; font-size:16px; }
+ .tool { min-height:44px; padding:.5rem .8rem; background:var(--card); border:1px solid var(--line-2); border-radius:var(--r-ctl); font-size:.78rem; font-weight:500; } .tool:disabled { opacity:.5; cursor:default; } .more { justify-self:start; } .map-action { background:var(--accent); color:white; border-color:var(--accent); }
+ .empty { padding:1.5rem; background:var(--paper-2); }
+ @media(max-width:899px) { .row { grid-template-columns:minmax(0,1fr) auto; gap:1rem .5rem; } .row-heading { grid-column:1; } .values { grid-column:2; grid-row:1; } .plot { grid-column:1/-1; grid-row:2; } .values strong { font-size:1.1rem; } .values>span { max-width:135px; } }
+ @media(max-width:420px) { .head { align-items:start; } .actions { gap:.6rem; } .actions label { flex-basis:100%; max-width:none; } }
 </style>

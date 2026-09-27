@@ -51,6 +51,8 @@ import ScanChangeChart from './ScanChangeChart.svelte';
 import MethodologyBlock from './MethodologyBlock.svelte';
 import WaitDistribution from './WaitDistribution.svelte';
 import Page from '../+page.svelte';
+import { waitPoints, waitSamples } from './waits';
+import { readAtlasUrl } from '$lib/atlas/url';
 import { SECTION_IDS, calculateActiveSection } from './navigation';
 
 const data = fixture as unknown as AtlasData;
@@ -251,7 +253,7 @@ describe('server render', () => {
 		const withSites = render(CoverageList, { props: { data, selection: sel, sort: 'count', onSort: noop, selectedKey: '20:16', onSelect: noop } }).body;
 		expect(withSites).toContain('aria-expanded="true"');
 		const first = providersIn(idx, 20, 16, [...SECTORS])[0];
-		expect(withSites).toContain(titleCase(first.name));
+		expect(withSites).toContain(providerName(first));
 		expect(withSites).toContain(titleCase(first.city));
 		// Αιτωλοακαρνανία × Αναισθησιολόγος: nothing there, the nearest is 153 km away.
 		const none = render(CoverageList, { props: { data, selection: { ...sel, prefectureId: 1 }, sort: 'count', onSort: noop, selectedKey: '1:6', onSelect: noop } }).body;
@@ -278,7 +280,7 @@ describe('server render', () => {
 			render(CoverageRanking, { props: { data, selection: { ...sel, mode: 'specialty' }, onSelect: noop } }).body,
 			render(ScanChangeChart, { props: { report } }).body,
 			render(MethodologyBlock, { props: { report } }).body,
-			render(WaitDistribution, { props: { data, selection: sel, expandedKey: '20:16', onToggle: noop, onShowOnMap: noop } }).body,
+			render(WaitDistribution, { props: { data, selection: sel, onShowOnMap: noop } }).body,
 			render(CoverageMatrix, { props: { data, sectors: [...SECTORS], metric: 'count', onMetric: noop, onSelect: noop, compact: true, prefectureId: 20, onPrefectureChange: noop } }).body
 		].join('\n');
 		expect(html).not.toContain('—');
@@ -371,7 +373,7 @@ describe('responsive atlas contracts', () => {
 	])('renders small wait samples as dots only ($sampleDots)', ({ values, sampleDots }) => {
 		const fixture = waitFixture(values);
 		const html = render(WaitDistribution, {
-			props: { data: fixture, selection: { ...sel, prefectureId: 1, specialtyId: 1 }, expandedKey: null, onToggle: noop, onShowOnMap: noop }
+			props: { data: fixture, selection: { ...sel, prefectureId: 1, specialtyId: 1 }, onShowOnMap: noop }
 		}).body;
 		expect((html.match(/class="sample-dot/g) ?? []).length).toBe(sampleDots);
 		expect((html.match(/class="mean/g) ?? []).length).toBe(1);
@@ -380,39 +382,30 @@ describe('responsive atlas contracts', () => {
 		expect(html).not.toContain('class="median"');
 	});
 
-	it('renders a five-sample box plot, duplicate dots, outliers and an empty wait state', () => {
+	it('plots every distinct day with its number, groups equal days and shows an empty wait state', () => {
 		const five = render(WaitDistribution, {
-			props: { data: waitFixture([1, 1, 2, 3, 50]), selection: { ...sel, prefectureId: 1, specialtyId: 1 }, expandedKey: null, onToggle: noop, onShowOnMap: noop }
+			props: { data: waitFixture([1, 1, 2, 3, 50]), selection: { ...sel, prefectureId: 1, specialtyId: 1 }, onShowOnMap: noop }
 		}).body;
-		expect(five).toMatch(/class="box(?: |")/);
-		expect(five).toMatch(/class="whisk(?: |")/);
-		expect(five).toMatch(/class="median(?: |")/);
-		expect((five.match(/class="outlier/g) ?? []).length).toBeGreaterThan(0);
-		expect((five.match(/class="sample-dot/g) ?? []).length).toBe(0);
+		expect((five.match(/class="sample-dot/g) ?? []).length).toBe(4);
+		for (const day of [1, 2, 3, 50]) expect(five).toMatch(new RegExp(`<b[^>]*>${day}</b>`));
+		expect(five).toContain('×2');
+		expect(five).toContain('1 ημέρα · Άρτα · 2 σημεία');
+		expect(five).toContain('2 ημέρες · Άρτα · 1 σημείο');
+		expect(five).not.toMatch(/class="box(?: |")/);
 		const empty = render(WaitDistribution, {
-			props: { data: waitFixture([]), selection: { ...sel, prefectureId: 1, specialtyId: 1 }, expandedKey: null, onToggle: noop, onShowOnMap: noop }
+			props: { data: waitFixture([]), selection: { ...sel, prefectureId: 1, specialtyId: 1 }, onShowOnMap: noop }
 		}).body;
 		expect(empty).toContain('Κανένα σημείο με ημερομηνία');
 	});
 
-	it('wait rows expose controlled expansion, all four values and a separate map action', () => {
-		const key = '1:1';
-		const closed = render(WaitDistribution, {
-			props: { data: waitFixture([1, 2, 4]), selection: { ...sel, prefectureId: 1, specialtyId: 1 }, expandedKey: null, onToggle: noop, onShowOnMap: noop }
+	it('wait rows have no disclosure; specialty choice and map action are separate controls', () => {
+		const html = render(WaitDistribution, {
+			props: { data: waitFixture([1, 2, 4]), selection: { ...sel, prefectureId: 1, specialtyId: 1 }, onShowOnMap: noop }
 		}).body;
-		expect(closed).toContain('aria-expanded="false"');
-		expect(closed).toMatch(/aria-controls="[^"]+"/);
-		const open = render(WaitDistribution, {
-			props: { data: waitFixture([1, 2, 4]), selection: { ...sel, prefectureId: 1, specialtyId: 1 }, expandedKey: key, onToggle: noop, onShowOnMap: noop }
-		}).body;
-		expect(open).toContain('aria-expanded="true"');
-		expect(open).toContain('Διάμεσος:');
-		expect(open).toContain('Μέσος όρος:');
-		expect(open).toContain('Εύρος:');
-		expect(open).toContain('Σημεία με ημερομηνία:');
-		expect(open).toContain('Δες στον χάρτη');
-		expect(open).toContain('Αλλάζει την επιλογή στα φίλτρα.');
-		expect(open).toContain('Με ημερομηνία / σύνολο σημείων.');
+		expect(html).not.toContain('aria-expanded');
+		expect(html).toContain('Επίλεξε ειδικότητα');
+		expect(html).toContain('Δες στον χάρτη');
+		expect(html).toContain('Πρώτο 1');
 	});
 
 	it('section navigation has four ordered anchors and a pure reading-band calculation', () => {
@@ -589,10 +582,55 @@ describe('waits (box plot)', () => {
 		for (let i = 1; i < none.length; i++) expect(none[i - 1].stats.median).toBeGreaterThanOrEqual(none[i].stats.median);
 	});
 	it('renders wait rows with a distribution and says how many sites had a date', () => {
-		const html = render(WaitDistribution, { props: { data, selection: all, expandedKey: null, onToggle: () => {}, onShowOnMap: () => {} } }).body;
-		expect(html).toContain('Αναμονή ραντεβού');
-		expect(html).toContain('class="box');
+		const html = render(WaitDistribution, { props: { data, selection: all, onShowOnMap: () => {} } }).body;
+		expect(html).toContain('Πόσες ημέρες περιμένεις');
+		expect(html).toContain('class="sample-dot');
 		expect(html).toContain('με ημερομηνία');
 		expect(html).not.toContain('—');
+	});
+});
+
+describe('wait dots match their row', () => {
+	it('every row value is a plotted dot, for every sector the row counts', () => {
+		const data = fixture as unknown as AtlasData;
+		const idx = buildIndex(data);
+		const all: Selection = { mode: 'place', prefectureId: null, specialtyId: null, sectors: [...SECTORS] };
+		for (const row of waitRows(data, idx, all)) {
+			const key = parseKey(row.key)!;
+			const dots = waitSamples(data, { ...all, ...key }).map((s) => s.days).sort((a, b) => a - b);
+			expect(dots, row.key).toEqual([...row.values].sort((a, b) => a - b));
+		}
+	});
+});
+
+describe('url parameters', () => {
+	it('accept ids or accent-free names for prefecture and specialty', () => {
+		const data = fixture as unknown as AtlasData;
+		const spec = data.specialties[0];
+		const pref = data.prefectures[0];
+		const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase();
+		const url = new URL(`https://x.test/?specialty=${encodeURIComponent(fold(spec.name))}&prefecture=${pref.id}&metric=mean`);
+		const state = readAtlasUrl(url, data);
+		expect(state.selection.specialtyId).toBe(spec.id);
+		expect(state.selection.prefectureId).toBe(pref.id);
+		expect(state.metric).toBe('mean');
+		expect(readAtlasUrl(new URL('https://x.test/?specialty=nope&metric=bad'), data).selection.specialtyId).toBeNull();
+	});
+});
+
+describe('privacy and tap targets', () => {
+	it('never names a private or ΕΟΠΥΥ doctor, even if the data carries a name', () => {
+		const base = (fixture as unknown as AtlasData).providers[0];
+		expect(providerName({ ...base, sector: 'private', name: 'ΠΑΠΑΔΟΠΟΥΛΟΣ ΙΩΑΝΝΗΣ' })).toBe('Ιδιώτης ιατρός');
+		expect(providerName({ ...base, sector: 'eopyy', name: 'ΠΑΠΑΔΟΠΟΥΛΟΣ ΙΩΑΝΝΗΣ' })).toBe('Ιατρός συμβεβλημένος με τον ΕΟΠΥΥ');
+	});
+	it('dots closer than the minimum gap never share a lane', () => {
+		const base = (fixture as unknown as AtlasData).providers[0];
+		const samples = [0, 5, 10, 15, 20, 60].map((days, i) => ({ provider: { ...base, id: `p${i}` }, days }));
+		const points = waitPoints(samples, 100, 0.2);
+		const lanes = new Map<number, number[]>();
+		for (const p of points) lanes.set(p.lane, [...(lanes.get(p.lane) ?? []), p.days / 100]);
+		for (const xs of lanes.values()) for (let i = 1; i < xs.length; i++) expect(xs[i] - xs[i - 1]).toBeGreaterThanOrEqual(0.2);
+		expect(lanes.size).toBe(4); // 20 and 60 fit back into the first lane
 	});
 });

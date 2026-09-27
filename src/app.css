@@ -13,8 +13,8 @@ body {
 }
 
 body {
-	background: #f6f2ea;
-	color: #1e2a2b;
+	background: #edf3f6;
+	color: #152c3b;
 	font-family: 'Commissioner', ui-sans-serif, system-ui, -apple-system, sans-serif;
 	-webkit-font-smoothing: antialiased;
 	-webkit-tap-highlight-color: transparent;
@@ -32,7 +32,7 @@ button {
 }
 
 :focus-visible {
-	outline: 2px solid #2f6b5b;
+	outline: 2px solid #24638e;
 	outline-offset: 2px;
 }
 

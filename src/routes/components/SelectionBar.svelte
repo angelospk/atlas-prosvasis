@@ -11,6 +11,7 @@
 		selection,
 		onChange,
 		onReset,
+		showNavigation = true,
 		activeSection = 'map',
 		onNavigate = (_section: Section) => {},
 		updating = false,
@@ -20,6 +21,7 @@
 		selection: Selection;
 		onChange: (s: Selection) => void;
 		onReset: () => void;
+		showNavigation?: boolean;
 		activeSection?: Section;
 		onNavigate?: (section: Section) => void;
 		updating?: boolean;
@@ -70,6 +72,7 @@
 	}
 
 	onMount(() => {
+		if (!showNavigation) return;
 		const publish = () => {
 			if (!barEl) return;
 			const height = Math.ceil(barEl.getBoundingClientRect().height);
@@ -85,7 +88,7 @@
 	});
 </script>
 
-<div class="bar" bind:this={barEl} role="region" aria-label="Επιλογή νομού, ειδικότητας και φορέων">
+<div class="bar" class:standalone={!showNavigation} bind:this={barEl} role="region" aria-label="Επιλογή νομού, ειδικότητας και φορέων">
 	<div class="picker-row">
 		<div class="desktop-pickers">
 			<Combobox id={`${uid}-place`} label="Νομός" options={placeOptions} value={selection.prefectureId} onPick={(id) => emit({ prefectureId: id })} placeholder="Νομός ή έδρα" compact />
@@ -130,7 +133,7 @@
 		{/if}
 	</div>
 
-	<div class="bar-bottom">
+	{#if showNavigation}<div class="bar-bottom">
 		<nav class="section-nav" aria-label="Ενότητες">
 			{#each navItems as item, i (item.section)}
 				{#if i > 0}<span class="separator" aria-hidden="true">·</span>{/if}
@@ -141,9 +144,10 @@
 			{#if updating}<span class="spinner" aria-hidden="true"></span>Ενημέρωση…{/if}
 		</span>
 	</div>
-</div>
+{/if}</div>
 
 <style>
+ .bar.standalone { position:relative; z-index:30; padding:0 0 1rem; background:transparent; }
 	.bar {
 		position: sticky;
 		top: 0;
