@@ -25,9 +25,9 @@
  const activePoint = $derived(activeRow?.points.find((p) => p.days === selected?.days));
  const mapKey = $derived(activeRow?.key ?? (selection.specialtyId != null ? `${selection.prefectureId ?? 0}:${selection.specialtyId}` : null));
  const pct = (days: number) => `${days / axisMax * 100}%`;
+ const cities = (point: WaitPoint) => [...new Set(point.samples.map((s) => titleCase(s.provider.city) || 'Χωρίς πόλη'))].join(', ');
  function describe(point: WaitPoint) {
-  const cities = [...new Set(point.samples.map((s) => titleCase(s.provider.city) || 'Χωρίς πόλη'))];
-  return `${plural(point.days, 'ημέρα', 'ημέρες')} · ${cities.join(', ')} · ${plural(point.samples.length, 'σημείο', 'σημεία')}`;
+  return `${plural(point.days, 'ημέρα', 'ημέρες')} · ${cities(point)} · ${plural(point.samples.length, 'σημείο', 'σημεία')}`;
  }
  function exportCsv() {
   downloadText(`atlas-αναμονή-${data.scan.at.slice(0, 10)}.csv`, toCsv([
@@ -80,6 +80,25 @@
    {/each}
   </ol>
   {#if rows.length > 12}<button class="more tool" aria-expanded={showingAll} onclick={() => showingAll = !showingAll}>{showingAll ? 'Λιγότερες γραμμές' : `Όλες οι γραμμές (${rows.length})`}</button>{/if}
+  <details class="as-table">
+   <summary>Δες τις τιμές σε πίνακα</summary>
+   <div class="table-wrap">
+    <table>
+     <caption>Ημέρες έως το πρώτο ραντεβού ανά σημείο · {selectionLabel(idx, selection)} · σάρωση {fmtDay(data.scan.at)}</caption>
+     <thead><tr><th scope="col">Νομός / ειδικότητα</th><th scope="col">Ημέρες</th><th scope="col">Πόλεις</th><th scope="col">Σημεία</th></tr></thead>
+     <tbody>
+      {#each plotted as row (row.key)}
+       {#each row.points as point, i (point.days)}
+        <tr class="point" class:first={i === 0}>
+         {#if i === 0}<th scope="rowgroup" rowspan={row.points.length}>{row.name}<small>μέσος {fmtStat(row.stats.mean)} ημ.</small></th>{/if}
+         <td class="num">{point.days}</td><td>{cities(point)}</td><td class="num">{point.samples.length}</td>
+        </tr>
+       {/each}
+      {/each}
+     </tbody>
+    </table>
+   </div>
+  </details>
  {/if}
  <div class="actions">
   <label for={`${uid}-specialty`}>Επίλεξε ειδικότητα
@@ -114,6 +133,13 @@
  select { width:100%; min-width:0; height:44px; border:1px solid var(--line-2); border-radius:var(--r-ctl); padding:0 .6rem; color:var(--ink); background:var(--card); font:inherit; font-size:16px; }
  .tool { min-height:44px; padding:.5rem .8rem; background:var(--card); border:1px solid var(--line-2); border-radius:var(--r-ctl); font-size:.78rem; font-weight:500; } .tool:disabled { opacity:.5; cursor:default; } .more { justify-self:start; } .map-action { background:var(--accent); color:white; border-color:var(--accent); }
  .empty { padding:1.5rem; background:var(--paper-2); }
+ .as-table summary { cursor:pointer; min-height:44px; display:flex; align-items:center; font-size:.82rem; font-weight:500; color:var(--accent-d); }
+ .table-wrap { max-height:420px; overflow:auto; border:1px solid var(--line); background:var(--card); }
+ table { width:100%; border-collapse:collapse; font-size:.82rem; } caption { text-align:left; padding:.6rem .8rem; font-size:.76rem; color:var(--ink-3); }
+ th,td { padding:.4rem .8rem; text-align:left; vertical-align:top; } thead th { position:sticky; top:0; background:var(--paper-2); font-weight:600; }
+ tr.first>* { border-top:1px solid var(--line); } tbody th { font-weight:600; } tbody th small { display:block; font-weight:400; color:var(--ink-3); }
+ td.num { font-variant-numeric:tabular-nums; }
+ @media(max-width:420px) { th,td { padding:.4rem .45rem; } }
  @media(max-width:899px) { .row { grid-template-columns:minmax(0,1fr) auto; gap:1rem .5rem; } .row-heading { grid-column:1; } .values { grid-column:2; grid-row:1; } .plot { grid-column:1/-1; grid-row:2; } .values strong { font-size:1.1rem; } .values>span { max-width:135px; } }
  @media(max-width:420px) { .head { align-items:start; } .actions { gap:.6rem; } .actions label { flex-basis:100%; max-width:none; } }
 </style>

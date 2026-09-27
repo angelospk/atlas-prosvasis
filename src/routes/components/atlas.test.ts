@@ -603,6 +603,23 @@ describe('wait dots match their row', () => {
 	});
 });
 
+describe('wait table alternative', () => {
+	it('lists every plotted dot of every row as a table row, private doctors by town only', () => {
+		const base = fixture as unknown as AtlasData;
+		const secret = 'ΠΑΠΑΔΟΠΟΥΛΟΣ ΙΩΑΝΝΗΣ';
+		const data = { ...base, providers: base.providers.map((p) => (p.sector === 'private' ? { ...p, name: secret } : p)) };
+		const all: Selection = { mode: 'place', prefectureId: null, specialtyId: null, sectors: [...SECTORS] };
+		const html = render(WaitDistribution, { props: { data, selection: all, onShowOnMap: () => {} } }).body;
+		const table = html.slice(html.indexOf('<table'), html.indexOf('</table>'));
+		expect(table).toContain('<caption');
+		const idx = buildIndex(data);
+		const rows = waitRows(data, idx, all);
+		const points = rows.reduce((n, r) => n + new Set(waitSamples(data, { ...all, ...parseKey(r.key)! }).map((s) => s.days)).size, 0);
+		expect((table.match(/<tr class="point/g) ?? []).length).toBe(points);
+		expect(html).not.toContain(secret);
+	});
+});
+
 describe('url parameters', () => {
 	it('accept ids or accent-free names for prefecture and specialty', () => {
 		const data = fixture as unknown as AtlasData;
