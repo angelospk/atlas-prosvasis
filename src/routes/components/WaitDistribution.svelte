@@ -86,16 +86,16 @@
     <table>
      <caption>Ημέρες έως το πρώτο ραντεβού ανά σημείο · {selectionLabel(idx, selection)} · σάρωση {fmtDay(data.scan.at)}</caption>
      <thead><tr><th scope="col">Νομός / ειδικότητα</th><th scope="col">Ημέρες</th><th scope="col">Πόλεις</th><th scope="col">Σημεία</th></tr></thead>
-     <tbody>
-      {#each plotted as row (row.key)}
+     {#each plotted as row (row.key)}
+      <tbody>
        {#each row.points as point, i (point.days)}
-        <tr class="point" class:first={i === 0}>
+        <tr class="point">
          {#if i === 0}<th scope="rowgroup" rowspan={row.points.length}>{row.name}<small>μέσος {fmtStat(row.stats.mean)} ημ.</small></th>{/if}
          <td class="num">{point.days}</td><td>{cities(point)}</td><td class="num">{point.samples.length}</td>
         </tr>
        {/each}
-      {/each}
-     </tbody>
+      </tbody>
+     {/each}
     </table>
    </div>
   </details>
@@ -137,9 +137,9 @@
  .table-wrap { max-height:420px; overflow:auto; border:1px solid var(--line); background:var(--card); }
  table { width:100%; border-collapse:collapse; font-size:.82rem; } caption { text-align:left; padding:.6rem .8rem; font-size:.76rem; color:var(--ink-3); }
  th,td { padding:.4rem .8rem; text-align:left; vertical-align:top; } thead th { position:sticky; top:0; background:var(--paper-2); font-weight:600; }
- tr.first>* { border-top:1px solid var(--line); } tbody th { font-weight:600; } tbody th small { display:block; font-weight:400; color:var(--ink-3); }
+ tbody>tr:first-child>* { border-top:1px solid var(--line); } tbody th { font-weight:600; } tbody th small { display:block; font-weight:400; color:var(--ink-3); }
  td.num { font-variant-numeric:tabular-nums; }
- @media(max-width:420px) { th,td { padding:.4rem .45rem; } }
+ @media(max-width:420px) { table { table-layout:fixed; } th,td { padding:.4rem .4rem; overflow-wrap:break-word; } thead th:nth-child(1) { width:34%; } thead th:nth-child(2),thead th:nth-child(4) { width:17%; } }
  @media(max-width:899px) { .row { grid-template-columns:minmax(0,1fr) auto; gap:1rem .5rem; } .row-heading { grid-column:1; } .values { grid-column:2; grid-row:1; } .plot { grid-column:1/-1; grid-row:2; } .values strong { font-size:1.1rem; } .values>span { max-width:135px; } }
  @media(max-width:420px) { .head { align-items:start; } .actions { gap:.6rem; } .actions label { flex-basis:100%; max-width:none; } }
 </style>

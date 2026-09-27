@@ -607,15 +607,27 @@ describe('wait table alternative', () => {
 	it('lists every plotted dot of every row as a table row, private doctors by town only', () => {
 		const base = fixture as unknown as AtlasData;
 		const secret = 'ΠΑΠΑΔΟΠΟΥΛΟΣ ΙΩΑΝΝΗΣ';
-		const data = { ...base, providers: base.providers.map((p) => (p.sector === 'private' ? { ...p, name: secret } : p)) };
+		const data = { ...base, providers: base.providers.map((p) => (p.sector === 'private' || p.sector === 'eopyy' ? { ...p, name: secret } : p)) };
+		expect(data.providers.some((p) => p.sector === 'eopyy') && data.providers.some((p) => p.sector === 'private')).toBe(true);
 		const all: Selection = { mode: 'place', prefectureId: null, specialtyId: null, sectors: [...SECTORS] };
 		const html = render(WaitDistribution, { props: { data, selection: all, onShowOnMap: () => {} } }).body;
 		const table = html.slice(html.indexOf('<table'), html.indexOf('</table>'));
 		expect(table).toContain('<caption');
 		const idx = buildIndex(data);
 		const rows = waitRows(data, idx, all);
-		const points = rows.reduce((n, r) => n + new Set(waitSamples(data, { ...all, ...parseKey(r.key)! }).map((s) => s.days)).size, 0);
-		expect((table.match(/<tr class="point/g) ?? []).length).toBe(points);
+		const groups = table.split('<tbody').slice(1);
+		expect(groups.length).toBe(rows.length); // one tbody per row, so each rowgroup header covers only its own dots
+		rows.forEach((row, g) => {
+			const expected = waitPoints(waitSamples(data, { ...all, ...parseKey(row.key)! }), 1).map((p) => ({
+				days: String(p.days), n: String(p.samples.length),
+				cities: [...new Set(p.samples.map((s) => titleCase(s.provider.city) || 'Χωρίς πόλη'))].join(', ')
+			}));
+			const head = groups[g].match(/<th scope="rowgroup" rowspan="(\d+)"[^>]*>([^<]*)</);
+			expect(head?.slice(1), row.key).toEqual([String(expected.length), row.name]);
+			const cells = [...groups[g].matchAll(/<td class="num[^"]*">(\d+)<\/td><td[^>]*>([^<]*)<\/td><td class="num[^"]*">(\d+)<\/td>/g)]
+				.map(([, days, cities, n]) => ({ days, cities, n }));
+			expect(cells, row.key).toEqual(expected);
+		});
 		expect(html).not.toContain(secret);
 	});
 });
