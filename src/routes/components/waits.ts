@@ -47,3 +47,19 @@ export function waitPoints(samples: WaitSample[], max: number, gap = 0.13): Wait
 		return { days, samples: items, lane };
 	});
 }
+
+/** The five wait classes, shared by the map's wait metrics and the wait chart's dots. */
+export const WAIT_FILL = ['#f9e8b4', '#eecb7e', '#d9a04d', '#ad672d', '#743b1e'] as const;
+export const WAIT_LABEL = ['έως 7 ημ.', '8 έως 14', '15 έως 30', '31 έως 60', 'πάνω από 60 ημ.'] as const;
+export function waitClass(days: number): 0 | 1 | 2 | 3 | 4 {
+	return days <= 7 ? 0 : days <= 14 ? 1 : days <= 30 ? 2 : days <= 60 ? 3 : 4;
+}
+
+/** A day axis that ends on a round step: weeks for short waits, fortnights, then months. */
+export function dayAxis(maxDays: number): { max: number; ticks: number[] } {
+	const step = maxDays <= 35 ? 7 : maxDays <= 98 ? 14 : 30;
+	const max = Math.max(step * 2, Math.ceil(maxDays / step) * step);
+	const ticks: number[] = [];
+	for (let t = 0; t <= max; t += step) ticks.push(t);
+	return { max, ticks };
+}

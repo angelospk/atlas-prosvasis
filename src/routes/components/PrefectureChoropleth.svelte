@@ -4,8 +4,7 @@
 	// 6–10 · 11–20 · 21–30 · 31+); a specialty → its sites per 100 000 residents (fixed classes
 	// 0 · >0–1 · >1–2 · >2–4 · >4). Fixed classes so this week's map can be laid next to last
 	// week's. Pure SVG, projected here (equirectangular, cos 38.5°). Zero is paper with a brick
-	// outline, a real absence, not a light tone; unknown is hatched. Attica gets an inset
-	// because it is small and dense. Fills and strokes are inline attributes (not classes) so
+	// outline, a real absence, not a light tone; unknown is hatched. Fills and strokes are inline attributes (not classes) so
 	// the SVG can be serialised as is for the PNG export. A tap or click selects the
 	// prefecture; nothing opens.
 	import type { AtlasData, PrefectureBoundaries, Selection, Sector } from '$lib/atlas/types';
@@ -39,7 +38,7 @@
 		type Row
 	} from './format';
 	import { downloadBlob, downloadText } from './download';
-	import { prefectureWaits } from './waits';
+	import { prefectureWaits, WAIT_FILL as WAIT_COLORS, WAIT_LABEL, waitClass } from './waits';
 	import type { MapMetric } from '$lib/atlas/url';
 	import { fmtStat, type WaitStats } from './format';
 
@@ -49,13 +48,16 @@
 		selection,
 		onSelect,
 		metric = 'coverage',
-		onMetric = (_metric: MapMetric) => {}
+		onMetric = (_metric: MapMetric) => {},
+		onSpecialty = null
 	}: {
 		data: AtlasData;
 		boundaries: PrefectureBoundaries;
 		selection: Selection;
 		onSelect: (prefectureId: number) => void;
 		metric?: MapMetric; onMetric?: (metric: MapMetric) => void;
+		/** Shows a specialty picker in the tools row; null hides it (e.g. a locked embed). */
+		onSpecialty?: ((specialtyId: number | null) => void) | null;
 	} = $props();
 
 	const uid = $props.id();
@@ -84,8 +86,6 @@
 		id: number;
 		name: string;
 		d: string;
-		/** Largest ring (the mainland), for the inset frame. */
-		main: Box;
 	}
 	const geo = $derived.by(() => {
 		const projected = boundaries.features.map((f) => ({ id: f.properties.id, name: f.properties.name, polys: projectRings(f.geometry) }));
@@ -96,31 +96,11 @@
 		const fit = (pt: [number, number]): [number, number] => [(pt[0] - box.x0) * k + PAD, (pt[1] - box.y0) * k + PAD];
 		const shapes: Shape[] = projected.map((p) => {
 			const polys: Ring[][] = p.polys.map((poly) => poly.map((r) => ({ pts: r.pts.map(fit), area: r.area })));
-			let main = polys[0]?.[0];
-			for (const poly of polys) if (poly[0] && poly[0].area > (main?.area ?? -1)) main = poly[0];
-			return { id: p.id, name: p.name, d: ringsPath(polys, 1), main: boxOf(main?.pts ?? []) };
+			return { id: p.id, name: p.name, d: ringsPath(polys, 1) };
 		});
 		return { shapes, H };
 	});
 	const H = $derived(geo.H);
-
-	// Attica inset: a square in the top-right corner (the empty Thracian/Anatolian side),
-	// framing mainland Attica with a little of its neighbours.
-	const INSET_ID = 5;
-	const inset = $derived.by(() => {
-		const side = Math.round(W * 0.3);
-		const x = W - side - 2;
-		const y = 2;
-		const shape = geo.shapes.find((s) => s.id === INSET_ID);
-		if (!shape || !Number.isFinite(shape.main.x0)) return null;
-		const bw = shape.main.x1 - shape.main.x0;
-		const bh = shape.main.y1 - shape.main.y0;
-		const s = (side * 0.84) / Math.max(bw, bh);
-		const cx = (shape.main.x0 + shape.main.x1) / 2;
-		const cy = (shape.main.y0 + shape.main.y1) / 2;
-		const transform = `translate(${(x + side / 2).toFixed(1)},${(y + side / 2).toFixed(1)}) scale(${s.toFixed(3)}) translate(${(-cx).toFixed(1)},${(-cy).toFixed(1)})`;
-		return { x, y, side, transform };
-	});
 
 	// ---- values ----
 	const idx = $derived(buildIndex(data));
@@ -129,8 +109,8 @@
 	const specTotal = $derived(data.specialties.length);
 	const waitMode = $derived(metric !== 'coverage');
 	const waits = $derived(spec ? prefectureWaits(data, selection) : new Map<number, WaitStats>());
-	const WAIT_FILL: Record<Cls, string> = { 0:'#f9e8b4', 1:'#eecb7e', 2:'#d9a04d', 3:'#ad672d', 4:'#743b1e' };
-	const WAIT_TEXT: Record<Cls, string> = { 0:'0 έως 7 ημ.', 1:'πάνω από 7 έως 14', 2:'πάνω από 14 έως 30', 3:'πάνω από 30 έως 60', 4:'πάνω από 60 ημ.' };
+	const WAIT_FILL = { ...WAIT_COLORS } as Record<Cls, string>;
+	const WAIT_TEXT = { ...WAIT_LABEL } as Record<Cls, string>;
 	const FILL = $derived(waitMode ? WAIT_FILL : rateMode ? RATE_FILL : COUNT_FILL);
 	const CLASS_TEXT = $derived(waitMode ? WAIT_TEXT : rateMode ? RATE_TEXT : COUNT_CLASS_LABEL);
 
@@ -163,8 +143,8 @@
 			const n = covered.get(p.id) ?? 0;
 			const wait = waits.get(p.id) ?? null;
 			const days = wait ? (metric === 'first' ? wait.min : wait.mean) : null;
-			const waitClass: Cls | null = days == null ? null : days <= 7 ? 0 : days <= 14 ? 1 : days <= 30 ? 2 : days <= 60 ? 3 : 4;
-			m.set(p.id, { id: p.id, name: p.name, row, covered: n, wait, cls: waitMode ? waitClass : rateMode ? rateClass(row ? row.per100k : null) : countClass(n) });
+			const waitCls: Cls | null = days == null ? null : waitClass(days);
+			m.set(p.id, { id: p.id, name: p.name, row, covered: n, wait, cls: waitMode ? waitCls : rateMode ? rateClass(row ? row.per100k : null) : countClass(n) });
 		}
 		return m;
 	});
@@ -251,6 +231,7 @@
 	}
 	const activeInfo = $derived(active == null ? null : (infoById.get(active) ?? null));
 	const sortedPrefs = $derived([...data.prefectures].sort((a, b) => a.name.localeCompare(b.name, 'el')));
+	const sortedSpecs = $derived([...data.specialties].sort((a, b) => titleCase(a.name).localeCompare(titleCase(b.name), 'el')));
 
 	// Tooltip placement: below-right of the pointer, flipped when it would leave the frame.
 	const tipStyle = $derived.by(() => {
@@ -409,11 +390,6 @@
 					<rect width="4" height="4" fill={CARD} />
 					<rect width="1" height="4" fill={LINE2} />
 				</pattern>
-				{#if inset}
-					<clipPath id="{uid}-inset">
-						<rect x={inset.x} y={inset.y} width={inset.side} height={inset.side} />
-					</clipPath>
-				{/if}
 			</defs>
 
 			<!-- Sea is card so a zero prefecture (paper + brick) still reads as land. -->
@@ -442,29 +418,6 @@
 				/>
 			{/each}
 
-			{#if inset}
-				<rect x={inset.x} y={inset.y} width={inset.side} height={inset.side} fill={CARD} stroke={LINE2} stroke-width="0.8" />
-				<g clip-path="url(#{uid}-inset)">
-					<g transform={inset.transform}>
-						{#each ordered as s (s.id)}
-							<path
-								d={s.d}
-								fill={fillOf(s.id)}
-								fill-rule="evenodd"
-								stroke={strokeOf(s.id)}
-								stroke-width={strokeWidth(s.id)}
-								stroke-linejoin="round"
-								vector-effect="non-scaling-stroke"
-								aria-hidden="true"
-								onpointerenter={(e) => enter(s.id, e)}
-								onpointermove={move}
-								onclick={() => onSelect(s.id)}
-							/>
-						{/each}
-					</g>
-				</g>
-				<text x={inset.x + 6} y={inset.y + 13} font-family={SANS} font-size="10" fill={INK3}>Αττική, μεγέθυνση</text>
-			{/if}
 		</svg>
 
 		{#if activeInfo}
@@ -490,6 +443,17 @@
 	</div>
 
 	<div class="tools">
+		{#if onSpecialty}
+			<label class="pick">
+				<span>Ειδικότητα</span>
+				<select value={selection.specialtyId ?? ''} onchange={(e) => { const v = (e.currentTarget as HTMLSelectElement).value; onSpecialty(v ? +v : null); }}>
+					<option value="">Όλες οι ειδικότητες</option>
+					{#each sortedSpecs as sp (sp.id)}
+						<option value={sp.id}>{titleCase(sp.name)}</option>
+					{/each}
+				</select>
+			</label>
+		{/if}
 		<label class="pick">
 			<span>Νομός</span>
 			<select value={selection.prefectureId ?? ''} onchange={(e) => { const v = (e.currentTarget as HTMLSelectElement).value; if (v) onSelect(+v); }}>
@@ -506,14 +470,13 @@
 
 	<p class="foot">
 		{#if waitMode}
-   Ημέρες από τη σάρωση, όχι πραγματικός χρόνος εξυπηρέτησης. Απλός μέσος ανά σημείο με ημερομηνία, χωρίς στάθμιση δυναμικότητας. Η έλλειψη ημερομηνίας δεν είναι μηδενική αναμονή.
-  {:else if rateMode}
-			Οι κλάσεις είναι σταθερά διαστήματα, όχι πρότυπα. Μηδέν σημαίνει «δεν καταγράφεται στον κατάλογο».
+			Ημέρες από τη σάρωση. Χωρίς ημερομηνία δεν σημαίνει μηδέν αναμονή.
+		{:else if rateMode}
+			Μηδέν: δεν καταγράφεται στον κατάλογο.
 		{:else}
-			Οι κλάσεις είναι σταθερές, για να συγκρίνονται οι εβδομάδες. Διάλεξε ειδικότητα για την αναλογία ανά 100.000.
+			Διάλεξε ειδικότητα για την αναλογία ανά 100.000.
 		{/if}
-		Όρια © <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap contributors</a> (ODbL) · ακτογραμμή ©
-		<a href="https://www.geoboundaries.org/" rel="noopener">geoBoundaries</a> (CC BY 4.0).
+		Όρια © <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a> (ODbL) · <a href="https://www.geoboundaries.org/" rel="noopener">geoBoundaries</a> (CC BY 4.0).
 	</p>
 </figure>
 
@@ -737,9 +700,13 @@
 		.tip {
 			display: none;
 		}
+		/* The pickers take a row each; PNG and CSV share the last one. */
 		.tools {
-			flex-direction: column;
-			align-items: stretch;
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+		}
+		.pick {
+			grid-column: 1 / -1;
 		}
 		.pick select {
 			max-width: none;

@@ -52,6 +52,14 @@ export function writeAtlasUrl(url: URL, selection: Selection, metric: MapMetric)
 	return next;
 }
 
-export function widgetUrl(widget: Widget, selection: Selection, metric: MapMetric, origin = PUBLIC_SITE): URL {
-	return writeAtlasUrl(new URL(`/embed/${widget}`, origin), selection, metric);
+/** Widgets whose content depends on the specialty, so an embed can offer a specialty picker. */
+export const SPECIALTY_WIDGETS: readonly Widget[] = ['coverage', 'points', 'waits', 'list', 'summary', 'ranking'];
+/** `?specialty_picker=0` hides the embed's specialty picker; anything else (or nothing) shows it. */
+export const PICKER_PARAM = 'specialty_picker';
+export const pickerHidden = (url: URL) => url.searchParams.get(PICKER_PARAM) === '0';
+
+export function widgetUrl(widget: Widget, selection: Selection, metric: MapMetric, origin = PUBLIC_SITE, specialtyPicker = true): URL {
+	const url = writeAtlasUrl(new URL(`/embed/${widget}`, origin), selection, metric);
+	if (!specialtyPicker && SPECIALTY_WIDGETS.includes(widget)) url.searchParams.set(PICKER_PARAM, '0');
+	return url;
 }

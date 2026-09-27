@@ -753,3 +753,39 @@ export function waitRows(data: AtlasData, idx: AtlasIndex, selection: Selection)
 	}
 	return rows.sort((a, b) => b.stats.median - a.stats.median || a.name.localeCompare(b.name, 'el'));
 }
+
+// ---- readable text on a mixed tone (the matrix cells) ----
+const srgbToLinear = (v: number) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+const linearToSrgb = (v: number) => (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055);
+const hexRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+function toOklab([r, g, b]: number[]) {
+	const [lr, lg, lb] = [r, g, b].map(srgbToLinear);
+	const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
+	const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
+	const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
+	return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s];
+}
+function fromOklab([L, a, b]: number[]) {
+	const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+	const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+	const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+	return [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s]
+		.map((v) => Math.min(1, Math.max(0, linearToSrgb(v))));
+}
+const luminance = (rgb: number[]) => rgb.map(srgbToLinear).reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+export const contrast = (a: number[], b: number[]) => {
+	const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+	return (x + 0.05) / (y + 0.05);
+};
+/** The same colour CSS draws for `color-mix(in oklab, from, to t)`, as sRGB 0..1. */
+export function mixOklab(from: string, to: string, t: number): number[] {
+	const [a, b] = [toOklab(hexRgb(from)), toOklab(hexRgb(to))];
+	return fromOklab(a.map((v, i) => v + (b[i] - v) * t));
+}
+/** Text colour for a cell of that background: white, else the ink, else black (always ≥ 4.5:1). */
+export function readableText(bg: number[], ink = '#152c3b'): string {
+	// 4.6, not 4.5: the browser rounds the mixed colour to whole RGB steps.
+	if (contrast(bg, [1, 1, 1]) >= 4.6) return '#fff';
+	if (contrast(bg, hexRgb(ink)) >= 4.6) return ink;
+	return '#000000';
+}

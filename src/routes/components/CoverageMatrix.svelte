@@ -11,6 +11,8 @@
 		fmtOffset,
 		fmtPer100k,
 		fmtWaitCompact,
+		mixOklab,
+		readableText,
 		METRICS,
 		METRIC_LABEL,
 		nearestFor,
@@ -92,6 +94,8 @@
 	});
 	const tone = (value: number | null) => value == null || value <= 0 ? 0 : Math.min(1, Math.sqrt(value / ceiling));
 	const darkIsWorse = $derived(metric === 'nearestKm' || metric === 'earliestDate');
+	// Hex twins of --ink and --accent-d, for picking the digit colour in script.
+	const toneHex = $derived(darkIsWorse ? '#152c3b' : '#164e78');
 
 	let sortPref = $state<number | null>(null);
 	let sortSpec = $state<number | null>(null);
@@ -234,7 +238,7 @@
 		<div class="bar"><h2 id={`${uid}-matrix-title`}>Κάλυψη ανά ειδικότητα και νομό</h2><div class="metrics" role="group" aria-label="Μετρική">{#each METRICS as item (item)}<button type="button" class:on={metric === item} aria-pressed={metric === item} onclick={() => onMetric(item)}>{METRIC_LABEL[item]}</button>{/each}</div><button type="button" class="tool" onclick={exportCsv}>CSV</button><button type="button" class="tool" aria-haspopup="dialog" onclick={openBig}>Μεγάλη προβολή</button></div>
 		<p class="readout" aria-live="polite">{readout ?? 'Επίλεξε ένα κελί για τις τιμές. Σκούρο σημαίνει μεγαλύτερη τιμή.'}</p>
 		<div class="pagination"><button type="button" disabled={prefPage === 0} onclick={() => (prefPage = Math.max(0, prefPage - 1))}>Προηγούμενοι νομοί</button><span>Νομοί {pageStart} έως {pageEnd} από {prefOrder.length}</span><button type="button" disabled={prefPage >= pageCount - 1} onclick={() => (prefPage = Math.min(pageCount - 1, prefPage + 1))}>Επόμενοι νομοί</button></div>
-		<div class="scroll"><table><thead><tr><th class="corner"><button type="button" class="hbtn" onclick={() => { sortPref = null; sortSpec = null; }}>Ειδικότητα ↓ · Νομός →</button></th>{#each currentPrefOrder as pi (data.prefectures[pi].id)}{@const pref = data.prefectures[pi]}<th class="col" class:on={sortPref === pref.id}><button type="button" class="hbtn vert" onclick={() => (sortPref = sortPref === pref.id ? null : pref.id)} title={`Ταξινόμηση ειδικοτήτων κατά ${prefLabel(pref)}`}><span>{pref.name}</span></button></th>{/each}</tr></thead><tbody>{#each specOrder as si (data.specialties[si].id)}{@const spec = data.specialties[si]}<tr><th class="row" class:on={sortSpec === spec.id}><button type="button" class="hbtn" onclick={() => (sortSpec = sortSpec === spec.id ? null : spec.id)}>{titleCase(spec.name)}</button></th>{#each currentPrefOrder as pi (data.prefectures[pi].id)}{@const cell = values[si][pi]}{@const t = cell.unknown || cell.zero ? 0 : tone(cell.v)}<td><button type="button" class="cell" class:zero={cell.zero && !cell.unknown} class:unknown={cell.unknown} class:flag={cell.flagged} class:has={!cell.zero && !cell.unknown} class:light={t > 0.55} style:--t={t} aria-label={describe(cell, spec, data.prefectures[pi])} onmouseenter={() => (focusedCell = { s: si, p: pi })} onfocus={() => (focusedCell = { s: si, p: pi })} onmouseleave={() => (focusedCell = null)} onclick={() => pick(cell.key)}>{cellText(cell)}</button></td>{/each}</tr>{/each}</tbody></table></div>
+		<div class="scroll"><table><thead><tr><th class="corner"><button type="button" class="hbtn" onclick={() => { sortPref = null; sortSpec = null; }}>Ειδικότητα ↓ · Νομός →</button></th>{#each currentPrefOrder as pi (data.prefectures[pi].id)}{@const pref = data.prefectures[pi]}<th class="col" class:on={sortPref === pref.id}><button type="button" class="hbtn vert" onclick={() => (sortPref = sortPref === pref.id ? null : pref.id)} title={`Ταξινόμηση ειδικοτήτων κατά ${prefLabel(pref)}`}><span>{pref.name}</span></button></th>{/each}</tr></thead><tbody>{#each specOrder as si (data.specialties[si].id)}{@const spec = data.specialties[si]}<tr><th class="row" class:on={sortSpec === spec.id}><button type="button" class="hbtn" onclick={() => (sortSpec = sortSpec === spec.id ? null : spec.id)}>{titleCase(spec.name)}</button></th>{#each currentPrefOrder as pi (data.prefectures[pi].id)}{@const cell = values[si][pi]}{@const t = cell.unknown || cell.zero ? 0 : tone(cell.v)}<td><button type="button" class="cell" class:zero={cell.zero && !cell.unknown} class:unknown={cell.unknown} class:flag={cell.flagged} class:has={!cell.zero && !cell.unknown} style:--t={t} style:color={t > 0 ? readableText(mixOklab('#ffffff', toneHex, t)) : undefined} aria-label={describe(cell, spec, data.prefectures[pi])} onmouseenter={() => (focusedCell = { s: si, p: pi })} onfocus={() => (focusedCell = { s: si, p: pi })} onmouseleave={() => (focusedCell = null)} onclick={() => pick(cell.key)}>{cellText(cell)}</button></td>{/each}</tr>{/each}</tbody></table></div>
 		<div class="legend"><span><i class="sw zero"></i>0, δεν καταγράφηκε πάροχος</span><span><i class="sw hatch"></i>χωρίς μέτρηση</span>{#if metric === 'nearestKm'}<span><i class="sw flagsw"></i>πάνω από {flagKm} χλμ από την έδρα</span>{/if}{#if metric === 'earliestDate'}<span>Οι ημέρες μετρούν από τη σάρωση.</span>{/if}</div>
 	</section>
 	{#if big}

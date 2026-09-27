@@ -10,7 +10,6 @@
 	import { SECTORS } from '$lib/atlas/types';
 	import { calculateActiveSection, SECTION_IDS, SECTION_ORDER, type Section } from './components/navigation';
 	import { parseKey } from './components/format';
-	import SelectionBar from './components/SelectionBar.svelte';
 	import MetricSummary from './components/MetricSummary.svelte';
 	import CoverageList from './components/CoverageList.svelte';
 	import AccessMap from './components/AccessMap.svelte';
@@ -258,17 +257,15 @@
 {:else}
 	<div class="atlas site">
   <a class="skip-link" href="#atlas-map">Μετάβαση στον χάρτη</a>
-  <AtlasNav {activeSection} onNavigate={navigate} onHeightChange={publishBarHeight} />
+  <AtlasNav {data} selection={pendingSelection ?? selection} onChange={requestSelection} onReset={reset} {updating} {activeSection} onNavigate={navigate} onHeightChange={publishBarHeight} />
   <main class="page">
-  <header class="top"><div><span class="section-kicker">Ένας ανοιχτός χάρτης της υγείας</span><h1>Η φροντίδα,<br />στον χάρτη.</h1><p class="lede">Πού βρίσκεις την ειδικότητα που χρειάζεσαι. Πόσο απέχει. Και πόσες ημέρες μέχρι το πρώτο ραντεβού.</p></div><div class="edition"><span>Η εικόνα της Ελλάδας</span><strong>{data.prefectures.length} νομοί<span> / </span>{data.specialties.length} ειδικότητες</strong><span>Σάρωση {new Date(data.scan.at).toLocaleDateString('el-GR', { timeZone: 'UTC' })}</span><button onclick={copyView}>Μοιράσου αυτή την προβολή ↗</button><span role="status">{copyStatus}</span></div></header>
-
-		<SelectionBar data={data} selection={pendingSelection ?? selection} onChange={requestSelection} onReset={reset} {updating} showNavigation={false} />
+  <header class="top"><div><h1>Η φροντίδα,<br />στον χάρτη.</h1><p class="lede">Πού βρίσκεις την ειδικότητα που χρειάζεσαι. Πόσο απέχει. Και πόσες ημέρες μέχρι το πρώτο ραντεβού.</p></div><div class="edition"><strong>{data.prefectures.length} νομοί<span> / </span>{data.specialties.length} ειδικότητες</strong><span>Σάρωση {new Date(data.scan.at).toLocaleDateString('el-GR', { timeZone: 'UTC' })}</span><button onclick={copyView}>Μοιράσου αυτή την προβολή ↗</button><span role="status">{copyStatus}</span></div></header>
 
 		<div class="results" aria-busy={updating}>
 			<div class="briefing"><WeeklyBriefing report={data} onSelect={applyFinding} /><ShareWidget widget="briefing" {selection} /></div>
 
 			<section id="atlas-map" class="mapblock" aria-label="Χάρτης κάλυψης">
-				<div class="choro"><PrefectureChoropleth {data} boundaries={page.boundaries} selection={selection} onSelect={pickPrefecture} metric={mapMetric} onMetric={setMetric} /><ShareWidget widget="coverage" {selection} metric={mapMetric} /></div>
+				<div class="choro"><PrefectureChoropleth {data} boundaries={page.boundaries} selection={selection} onSelect={pickPrefecture} metric={mapMetric} onMetric={setMetric} onSpecialty={pickSpecialty} /><ShareWidget widget="coverage" {selection} metric={mapMetric} /></div>
 				<div class="side"><MetricSummary {data} {selection} /><ShareWidget widget="summary" {selection} /></div>
 			</section>
 

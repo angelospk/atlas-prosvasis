@@ -21,7 +21,8 @@
 		value,
 		onPick,
 		placeholder = '',
-		compact = false
+		compact = false,
+		inline = false
 	}: {
 		/** Unique per page: used for the listbox id and option ids. */
 		id: string;
@@ -32,6 +33,8 @@
 		placeholder?: string;
 		/** Smaller control for the sticky bar. */
 		compact?: boolean;
+		/** One-line control for the navigation bar: the label is kept for screen readers only. */
+		inline?: boolean;
 	} = $props();
 
 	const listId = $derived(`${id}-list`);
@@ -98,7 +101,7 @@
 	}
 </script>
 
-<label class="field" class:compact bind:this={root}>
+<label class="field" class:compact class:inline bind:this={root}>
 	<span class="flabel">{label}</span>
 	<input
 		type="text"
@@ -187,6 +190,24 @@
 		height: 44px;
 		font-size: 16px;
 		padding: 0 10px;
+	}
+	.inline .flabel {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+	.inline input {
+		min-height: 38px;
+		height: 38px;
+		font-size: 0.9rem;
+		padding: 0 10px;
+	}
+	.inline .list {
+		width: max(100%, 17rem);
+		max-width: 90vw;
 	}
 	.list {
 		position: absolute;

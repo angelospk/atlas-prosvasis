@@ -8,11 +8,12 @@ props; nothing fetches or reads a store. Types come from `src/lib/atlas/types.ts
 
 ## Brief 3: simple by default, depth one tap away
 
-The page is steered from one sticky **SelectionBar**; every graphic derives from the same
-`Selection`. Page order the assembler uses:
+The page is steered from one sticky **AtlasNav** (the mark, the **SelectionBar** pickers, the
+section links and a reset); every graphic derives from the same `Selection`. Page order the
+assembler uses:
 
-1. H1 «Άτλας πρόσβασης» + a one-sentence lede. No eyebrow.
-2. **SelectionBar** (sticky).
+1. **AtlasNav** (sticky), then H1 + a one-sentence lede. No eyebrow, no kicker.
+2. (the pickers live in AtlasNav)
 3. **WeeklyBriefing** (four findings).
 4. **PrefectureChoropleth** with **MetricSummary** beside it (desktop) / below (phone).
 5. **CoverageList** (rows expand in place) with **AccessMap** beside it on desktop only. On
@@ -65,7 +66,14 @@ Internal piece: the searchable picker (input + listbox, accent-insensitive, Arro
 Escape; blur closes after a tick so a click can land). `ComboOption` is `{ id: number | null,
 label, sub, search }`; `id: null` is the «all» entry. Used by SelectionBar and ExplorerControls.
 
-**SelectionBar** `{ data, selection, onChange, onReset }`. Sticky (`position: sticky; top: 0`,
+**AtlasNav** `{ data, selection, onChange, onReset, updating?, activeSection, onNavigate }`.
+The navy bar: **AtlasMark** (no site title), SelectionBar, the four section links, the
+«Ενημέρωση…» status and a × reset when the selection is not the default. Desktop one ~56px
+row; phones two rows (pickers; mark + links + reset). It publishes `--atlas-bar-height`.
+The notes below on SelectionBar describe its earlier standalone form: it is now only the
+pickers (comboboxes on desktop, native selects on touch) and the sectors popover.
+
+**SelectionBar** `{ data, selection, onChange }`. Formerly sticky (`position: sticky; top: 0`,
 z-index 40). One row: «Νομός» («Όλη η Ελλάδα» + the 51), «Ειδικότητα» («Όλες» + all), and
 «Φορείς: όλοι ▾», a `<details>` collapsed by default that opens the four sector toggles (at least
 one stays on). Under it one plain line: «Βλέπεις: όλη την Ελλάδα · Παιδίατρος · ΕΣΥ + ΠΦΥ»,
@@ -94,7 +102,7 @@ metrics, derived from the selection:
   of `deriveRows`, so it agrees with the list to the decimal). Fixed classes 0 · >0–1 · >1–2 ·
   >2–4 · >4; zero is paper with a brick outline; unknown is hatched.
 
-Tap or click a prefecture (on the map, the Attica inset, or the alphabetical `<select>`) calls
+Tap or click a prefecture (on the map or the alphabetical `<select>`) calls
 `onSelect(prefectureId)`; nothing opens. The hover/focus tooltip stays on desktop (hidden under
 720px). Every path is `tabindex=0` / `role=button` with the full description as `aria-label`.
 Legend counts prefectures per class (+ «χωρίς μέτρηση»). **PNG** (serialised SVG + canvas title,

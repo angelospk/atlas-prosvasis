@@ -4,8 +4,8 @@
 	import '../../components/atlas.css';
 	import type { AtlasReport, Metric, PrefectureBoundaries, Selection } from '$lib/atlas/types';
 	import { SECTORS } from '$lib/atlas/types';
-	import { PUBLIC_SITE, readAtlasUrl, writeAtlasUrl, WIDGET_LABELS, type MapMetric, type Widget } from '$lib/atlas/url';
-	import { parseKey } from '../../components/format';
+	import { pickerHidden, PUBLIC_SITE, readAtlasUrl, SPECIALTY_WIDGETS, writeAtlasUrl, WIDGET_LABELS, type MapMetric, type Widget } from '$lib/atlas/url';
+	import { parseKey, titleCase } from '../../components/format';
 	import AtlasFooter from '../../components/AtlasFooter.svelte';
 	import MetricSummary from '../../components/MetricSummary.svelte';
 	import CoverageList from '../../components/CoverageList.svelte';
@@ -30,6 +30,11 @@
 	let compact = $state(true);
 	let matrixPrefectureId = $state<number | null>(null);
 	let ready = $state(false);
+	// Shown only after the query is read, so a locked embed never flashes the picker.
+	let specialtyPicker = $state(false);
+	// A new specialty drops the selected cell, so the point map does not keep the old one's line.
+	const pickSpecialty = (specialtyId: number | null) => { selectedKey = null; update({ specialtyId }); };
+	const sortedSpecs = $derived(data ? [...data.specialties].sort((a, b) => titleCase(a.name).localeCompare(titleCase(b.name), 'el')) : []);
 
 	// The full atlas opens on the same view, at the section that holds this widget.
 	const SECTION: Record<Widget, string> = {
@@ -69,7 +74,9 @@
 
 	onMount(() => {
 		if (data) {
-			const state = readAtlasUrl(new URL(window.location.href), data);
+			const url = new URL(window.location.href);
+			const state = readAtlasUrl(url, data);
+			specialtyPicker = !pickerHidden(url);
 			selection = state.selection;
 			metric = state.metric;
 			if (selection.prefectureId != null && selection.specialtyId != null) selectedKey = `${selection.prefectureId}:${selection.specialtyId}`;
@@ -93,12 +100,20 @@
 	{#if !data}
 		<p>Δεν υπάρχει ακόμη σάρωση.</p>
 	{:else}
+		{#if specialtyPicker && SPECIALTY_WIDGETS.includes(widget) && widget !== 'coverage' && widget !== 'waits'}
+			<label class="spec">Ειδικότητα
+				<select value={selection.specialtyId ?? ''} onchange={(e) => { const v = e.currentTarget.value; pickSpecialty(v ? +v : null); }}>
+					<option value="">Όλες οι ειδικότητες</option>
+					{#each sortedSpecs as sp (sp.id)}<option value={sp.id}>{titleCase(sp.name)}</option>{/each}
+				</select>
+			</label>
+		{/if}
 		{#if widget === 'coverage' && page.boundaries}
-			<PrefectureChoropleth {data} boundaries={page.boundaries} {selection} onSelect={(prefectureId) => update({ prefectureId })} {metric} onMetric={(m) => { metric = m; sync(); }} />
+			<PrefectureChoropleth {data} boundaries={page.boundaries} {selection} onSelect={(prefectureId) => update({ prefectureId })} {metric} onMetric={(m) => { metric = m; sync(); }} onSpecialty={specialtyPicker ? pickSpecialty : null} />
 		{:else if widget === 'points'}
 			<AccessMap {data} {selection} {selectedKey} onSelect={openCell} />
 		{:else if widget === 'waits'}
-			<WaitDistribution {data} {selection} onPickSpecialty={(specialtyId) => update({ specialtyId })} onShowOnMap={showOnMap} />
+			<WaitDistribution {data} {selection} onPickSpecialty={pickSpecialty} onShowOnMap={showOnMap} {specialtyPicker} />
 		{:else if widget === 'list'}
 			<CoverageList {data} {selection} {sort} onSort={(s) => { sort = s; selectedKey = null; }} {selectedKey} onSelect={(key) => (selectedKey = key != null && selectedKey !== key ? key : null)} {compact} expanded={true} onExpandedChange={() => {}} />
 		{:else if widget === 'summary'}
@@ -121,4 +136,6 @@
 <style>
 	.embed { display: grid; gap: 1rem; padding: clamp(0.75rem, 3vw, 1.25rem); min-width: 0; max-width: 1200px; margin: 0 auto; }
 	:global(body:has(.embed)) { background: var(--card, #fff); }
+	.spec { display: grid; gap: 0.25rem; max-width: 22rem; font-size: 0.78rem; font-weight: 600; color: var(--ink-2); }
+	.spec select { height: 44px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); color: var(--ink); padding: 0 0.5rem; font: inherit; font-size: 16px; }
 </style>
