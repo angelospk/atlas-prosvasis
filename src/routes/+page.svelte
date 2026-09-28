@@ -5,6 +5,9 @@
 	import AtlasNav from './components/AtlasNav.svelte';
 	import AtlasFooter from './components/AtlasFooter.svelte';
 	import ShareWidget from './components/ShareWidget.svelte';
+	import HeroConstellation from './components/HeroConstellation.svelte';
+	import KeyFindings from './components/KeyFindings.svelte';
+	import type { Insight } from './components/insights';
 	import './components/atlas.css';
 	import type { AtlasReport, Metric, PrefectureBoundaries, Selection } from '$lib/atlas/types';
 	import { SECTORS } from '$lib/atlas/types';
@@ -76,6 +79,12 @@
 		openPointMap?: boolean;
 		/** Switch the prefecture map to this metric and scroll to it. */
 		mapMetric?: MapMetric;
+		/** Scroll to this section once the selection has applied. */
+		section?: Section;
+		/** Show every row of the phone list, so an opened row further down is not hidden. */
+		expandList?: boolean;
+		/** Open this list of the summary beside the map, once the selection has applied. */
+		openSummary?: 'sites';
 	};
 
 	function requestSelection(next: Selection, request: SelectionRequest = {}) {
@@ -95,15 +104,18 @@
 			coverageExpanded = false;
 			if (request.openPointMap) pointMapOpen = true;
 			const requestedKey = request.focusKey ?? null;
-			selectedKey = request.mapKey !== undefined ? request.mapKey : requestedKey;
-			if (requestedKey && compact) coverageExpanded = true;
+			// With a prefecture and a specialty the list is that one row: it opens.
+			selectedKey = (request.mapKey !== undefined ? request.mapKey : requestedKey) ?? focusKey(candidate);
+			if ((requestedKey || request.expandList) && compact) coverageExpanded = true;
 			await tick();
 			if (!alive || token !== requestToken) return;
 			updating = false;
+			if (request.openSummary) summaryOpen = request.openSummary;
 			await tick();
 			if (!alive || token !== requestToken) return;
 			if (request.openPointMap) focusPointMap();
 			else if (request.mapMetric) navigate('map', !pushed);
+			else if (request.section) navigate(request.section, !pushed);
 			else if (requestedKey) showRow(requestedKey);
 		})();
 	}
@@ -124,6 +136,18 @@
 		pointHeading.focus({ preventScroll: true });
 	}
 
+	// A key finding: its selection on the prefecture map, in its own colouring.
+	function insightOnMap(i: Insight) {
+		requestSelection({ ...selection, ...i.selection, sectors: [...(i.selection.sectors ?? selection.sectors)] }, { focusKey: null, mapKey: i.evidenceKey, mapMetric: i.metric });
+	}
+	// Its detail: the sites on the point map, the list, or the sector counts beside the map.
+	let summaryOpen = $state<'sites' | null>(null);
+	function insightDetail(i: Insight) {
+		const next = { ...selection, ...i.selection, sectors: [...(i.selection.sectors ?? selection.sectors)] };
+		if (i.detail === 'points' && i.evidenceKey) requestSelection(next, { focusKey: i.evidenceKey, mapKey: i.evidenceKey, openPointMap: true });
+		else if (i.detail === 'sites') requestSelection(next, { focusKey: null, mapKey: null, mapMetric: 'coverage', openSummary: 'sites' });
+		else requestSelection(next, { focusKey: null, mapKey: null, section: 'list' });
+	}
 	// «Δες το στον χάρτη» goes to the prefecture map; «Δες αναλυτικά» to the finding's sites on the point map.
 	function applyFinding(partial: Partial<Selection>, evidenceKey: string | null, target: 'map' | 'points') {
 		const next = { ...selection, ...partial, sectors: partial.sectors?.length ? [...partial.sectors] : [...selection.sectors] };
@@ -145,6 +169,15 @@
 		const next = parsed ? { ...selection, prefectureId: parsed.prefectureId, specialtyId: parsed.specialtyId } : selection;
 		requestSelection(next, { focusKey: null, mapKey: key, mapMetric: parsed ? 'mean' : 'coverage' });
 	}
+	// The nav pickers: both chosen → that row opens in the list (without scrolling to it). From the
+	// top of the page the view moves to the map, so the pick visibly changes something.
+	function pickFromNav(next: Selection) {
+		const key = focusKey(withMode(next));
+		const mapTop = document.getElementById('atlas-map')?.getBoundingClientRect().top ?? 0;
+		requestSelection(next, { mapKey: key, expandList: key != null, section: mapTop > window.innerHeight * 0.6 ? 'map' : undefined });
+	}
+	// «Σημεία παροχής»: the sites of the current selection on the point map.
+	function showSites() { requestSelection(selection, { focusKey: null, mapKey: selectedKey, openPointMap: true }); }
 	function reset() { requestSelection({ ...DEFAULT, sectors: [...SECTORS] }, { focusKey: null, mapKey: null }); }
 	function toggleCoverage(key: string | null) { selectedKey = key != null && selectedKey !== key ? key : null; }
 	function changeSort(next: Metric) { sort = next; coverageExpanded = false; selectedKey = null; }
@@ -267,21 +300,21 @@
 {:else}
 	<div class="atlas site">
   <a class="skip-link" href="#atlas-map">Μετάβαση στον χάρτη</a>
-  <AtlasNav {data} selection={pendingSelection ?? selection} onChange={requestSelection} onReset={reset} {updating} {activeSection} onNavigate={navigate} onHeightChange={publishBarHeight} />
+  <AtlasNav {data} selection={pendingSelection ?? selection} onChange={pickFromNav} onReset={reset} {updating} {activeSection} onNavigate={navigate} onHeightChange={publishBarHeight} />
   <main class="page">
-  <header class="top"><div><h1>Δημόσια ιατρική φροντίδα,<br />νομό προς νομό.</h1><p class="lede">Ανοιχτά δεδομένα από το e-ραντεβού του Υπουργείου Υγείας: πού βρίσκεις την ειδικότητα που σου καλύπτει η δημόσια ασφάλιση, πόσο απέχει και πόσες ημέρες μέχρι το πρώτο ραντεβού.</p></div><div class="edition"><strong>{data.prefectures.length} νομοί<span> / </span>{data.specialties.length} ειδικότητες</strong><span>Σάρωση {new Date(data.scan.at).toLocaleDateString('el-GR', { timeZone: 'UTC' })}</span></div></header>
+  <header class="top"><div class="intro"><h1>Δημόσια ιατρική φροντίδα, <span>νομό προς νομό.</span></h1><p class="lede">Ανοιχτά δεδομένα από το e-ραντεβού του Υπουργείου Υγείας: πού βρίσκεις την ειδικότητα που σου καλύπτει η δημόσια ασφάλιση, πόσο απέχει και πόσες ημέρες μέχρι το πρώτο ραντεβού.</p><p class="edition"><strong>{data.prefectures.length} νομοί</strong><span aria-hidden="true">·</span><strong>{data.specialties.length} ειδικότητες</strong><span aria-hidden="true">·</span>σάρωση {new Date(data.scan.at).toLocaleDateString('el-GR', { timeZone: 'UTC' })}</p></div><div class="art"><HeroConstellation {data} boundaries={page.boundaries} /></div></header>
 
 		<div class="results" aria-busy={updating}>
-			<div class="briefing"><WeeklyBriefing report={data} onSelect={applyFinding} /><ShareWidget widget="briefing" {selection} /></div>
+			<KeyFindings {data} onMap={insightOnMap} onDetail={insightDetail} />
 
 			<section id="atlas-map" class="mapblock" aria-label="Χάρτης κάλυψης">
 				<div class="choro"><PrefectureChoropleth {data} boundaries={page.boundaries} selection={selection} onSelect={togglePrefecture} metric={mapMetric} onMetric={setMetric} /><ShareWidget widget="coverage" {selection} metric={mapMetric} /></div>
-				<div class="side"><MetricSummary {data} {selection} /><ShareWidget widget="summary" {selection} /></div>
+				<div class="side"><MetricSummary {data} {selection} bind:request={summaryOpen} onPickSpecialty={pickSpecialty} onPickPrefecture={pickPrefecture} onShowSites={showSites} /><ShareWidget widget="summary" {selection} /></div>
 			</section>
 
 			<div class="explorer">
 				<div class="pane list">
-					<CoverageList data={data} selection={selection} {sort} onSort={changeSort} {selectedKey} onSelect={toggleCoverage} {compact} expanded={coverageExpanded} onExpandedChange={(next) => (coverageExpanded = next)} /><ShareWidget widget="list" {selection} />
+					<CoverageList data={data} selection={selection} {sort} onSort={changeSort} {selectedKey} onSelect={toggleCoverage} {compact} expanded={coverageExpanded} onExpandedChange={(next) => (coverageExpanded = next)} onShowAll={() => pickSpecialty(null)} /><ShareWidget widget="list" {selection} />
 				</div>
 				<div class="pane map">
 					<div class="point-map-controls">
@@ -305,6 +338,8 @@
 				<ScanChangeChart report={data} /><ShareWidget widget="changes" {selection} />
 			</details>
 
+			<div class="briefing"><WeeklyBriefing report={data} onSelect={applyFinding} /><ShareWidget widget="briefing" {selection} /></div>
+
 			<MethodologyBlock report={data} /><AtlasFooter />
 		</div>
 	</main></div>
@@ -312,9 +347,12 @@
 
 <style>
 	.page { min-height: 100dvh; padding: clamp(1.25rem, 4vw, 2.5rem) clamp(1rem, 4vw, 2rem) 4rem; display: grid; gap: 1.6rem; max-width: 1360px; margin: 0 auto; min-width: 0; }
-	.top { display:grid; grid-template-columns:1.5fr 1fr; gap:2rem; align-items:end; min-width:0; padding:1.8rem 0 1.5rem; border-bottom:1px solid var(--line-2); }
- .edition { display:grid; gap:.7rem; justify-self:end; font-size:.8rem; color:var(--ink-3); } .edition strong { font-size:1.1rem; color:var(--ink); font-weight:500; } .edition strong span { color:var(--line-2); padding:0 .3rem; }
-	h1 { font-size: clamp(2.8rem, 6vw, 4.8rem); line-height: 1.05; margin-bottom: 0.6rem; }
+	.top { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:2.5rem; align-items:center; min-width:0; padding:.6rem 0 1.4rem; border-bottom:1px solid var(--line-2); }
+	.intro { display:grid; gap:.9rem; min-width:0; }
+	h1 { font-size: clamp(2rem, 3.6vw, 3.1rem); line-height: 1.08; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+	h1 span { display:block; color: var(--accent); }
+	.edition { display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem .5rem; margin:0; font-size:.82rem; color:var(--ink-3); } .edition strong { color:var(--ink); font-weight:600; } .edition span { color:var(--line-2); }
+	.art { justify-self:end; width:100%; max-width:250px; }
 	.lede { margin: 0; color: var(--ink-2); max-width: 56ch; text-wrap: pretty; }
 	.results { display: grid; gap: 3rem; min-width: 0; transition: opacity 120ms ease; }
 	.results[aria-busy='true'] { opacity: 0.72; }
@@ -334,7 +372,9 @@
 	}
 	@media (max-width: 899px) {
 		.results { gap: 2rem; }
- .top { grid-template-columns:1fr; padding:.5rem 0 1rem; gap:1.2rem; } .edition { justify-self:start; gap:.3rem; }
+ /* Phone: the drawing sits small beside the title; the text runs full width below. */
+ .top { grid-template-columns:minmax(0,1fr) 88px; grid-template-areas:'title art' 'lede lede' 'edition edition'; padding:.3rem 0 1rem; gap:.8rem; align-items:start; }
+ .intro { display:contents; } h1 { grid-area:title; } .lede { grid-area:lede; } .edition { grid-area:edition; } .art { grid-area:art; max-width:88px; }
 		.point-map-panel h2 { margin-top: 0.2rem; }
 	}
 </style>

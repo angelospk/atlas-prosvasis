@@ -1,5 +1,5 @@
 import type { AtlasData, Provider, Selection } from '$lib/atlas/types';
-import { daysFromScan, providerDate, waitStats, type WaitStats } from './format';
+import { buildIndex, daysFromScan, providerDate, providersIn, waitStats, type WaitStats } from './format';
 
 export interface WaitSample { provider: Provider; days: number }
 
@@ -8,10 +8,10 @@ export interface WaitSample { provider: Provider; days: number }
  * unrelated specialty date. */
 export function waitSamples(data: AtlasData, selection: Selection): WaitSample[] {
 	const out: WaitSample[] = [];
-	for (const provider of data.providers) {
+	const candidates = selection.specialtyId == null ? data.providers : providersIn(buildIndex(data), selection.prefectureId, selection.specialtyId, selection.sectors);
+	for (const provider of candidates) {
 		if (!selection.sectors.includes(provider.sector)) continue;
 		if (selection.prefectureId != null && provider.prefectureId !== selection.prefectureId) continue;
-		if (selection.specialtyId != null && !provider.specialtyIds.includes(selection.specialtyId)) continue;
 		const dates = selection.specialtyId == null
 			? provider.specialtyIds.map((id) => providerDate(provider, id))
 			: [providerDate(provider, selection.specialtyId)];

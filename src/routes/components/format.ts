@@ -201,25 +201,46 @@ export interface AtlasIndex {
 	cellByKey: Map<string, CoverageCell>;
 	/** Providers per specialty id (a provider with several specialties appears in each). */
 	provBySpec: Map<number, Provider[]>;
+	/** Providers per prefecture × specialty (cellKey), in provBySpec order. */
+	provByCell: Map<string, Provider[]>;
 	population: number;
 }
 
+// Every component asks for the index of the same report; build it once. On a phone the
+// repeated scans held the first render for seconds, with no button answering.
+const indexes = new WeakMap<AtlasData, AtlasIndex>();
 export function buildIndex(data: AtlasData): AtlasIndex {
+	const known = indexes.get(data);
+	if (known) return known;
 	const prefById = new Map(data.prefectures.map((p) => [p.id, p]));
 	const specById = new Map(data.specialties.map((s) => [s.id, s]));
 	const provById = new Map(data.providers.map((p) => [p.id, p]));
 	const cellByKey = new Map(data.cells.map((c) => [cellKey(c.prefectureId, c.specialtyId), c]));
 	const provBySpec = new Map<number, Provider[]>();
+	const provByCell = new Map<string, Provider[]>();
 	for (const p of data.providers) {
 		for (const s of p.specialtyIds) {
 			const arr = provBySpec.get(s);
 			if (arr) arr.push(p);
 			else provBySpec.set(s, [p]);
+			if (p.prefectureId == null) continue;
+			const key = cellKey(p.prefectureId, s);
+			const inCell = provByCell.get(key);
+			if (inCell) inCell.push(p);
+			else provByCell.set(key, [p]);
 		}
 	}
 	let population = 0;
 	for (const p of data.prefectures) population += p.population;
-	return { prefById, specById, provById, cellByKey, provBySpec, population };
+	const idx = { prefById, specById, provById, cellByKey, provBySpec, provByCell, population };
+	indexes.set(data, idx);
+	return idx;
+}
+
+/** Each site of a selection once (whatever its specialties): the unit of «μοναδικά σημεία». */
+export function uniqueSites(data: AtlasData, selection: Selection): Provider[] {
+	const { prefectureId, specialtyId, sectors } = selection;
+	return data.providers.filter((p) => sectors.includes(p.sector) && (prefectureId == null || p.prefectureId === prefectureId) && (specialtyId == null || p.specialtyIds.includes(specialtyId)));
 }
 
 /** Providers located in a prefecture offering a specialty, restricted to `sectors`. */
@@ -229,10 +250,8 @@ export function providersIn(
 	specialtyId: number,
 	sectors: readonly Sector[]
 ): Provider[] {
-	const all = idx.provBySpec.get(specialtyId) ?? [];
-	return all.filter(
-		(p) => sectors.includes(p.sector) && (prefectureId == null || p.prefectureId === prefectureId)
-	);
+	const all = (prefectureId == null ? idx.provBySpec.get(specialtyId) : idx.provByCell.get(cellKey(prefectureId, specialtyId))) ?? [];
+	return all.filter((p) => sectors.includes(p.sector));
 }
 
 export interface Nearest {
@@ -735,7 +754,9 @@ export interface WaitRow {
  * specialty), or the single chosen cell; every site in the chosen sectors with a first
  * free date is one value. Longest typical (median) wait first.
  */
-export function waitRows(data: AtlasData, idx: AtlasIndex, selection: Selection): WaitRow[] {
+/** mean: longest mean wait first (the figure each row shows). first: soonest first appointment first. */
+export type WaitOrder = 'mean' | 'first';
+export function waitRows(data: AtlasData, idx: AtlasIndex, selection: Selection, order: WaitOrder = 'mean'): WaitRow[] {
 	const { prefectureId, specialtyId, sectors } = selection;
 	const pairs: { prefectureId: number | null; specialtyId: number; name: string }[] =
 		specialtyId != null && prefectureId == null
@@ -754,7 +775,8 @@ export function waitRows(data: AtlasData, idx: AtlasIndex, selection: Selection)
 		const counts = Object.fromEntries(SECTORS.map((s) => [s, sites.filter((x) => x.sector === s).length])) as Record<Sector, number>;
 		if (stats) rows.push({ key: cellKey(p.prefectureId, p.specialtyId), name: p.name, sites: sites.length, counts, values, stats });
 	}
-	return rows.sort((a, b) => b.stats.median - a.stats.median || a.name.localeCompare(b.name, 'el'));
+	const cmp = order === 'first' ? (a: WaitRow, b: WaitRow) => a.stats.min - b.stats.min || a.stats.mean - b.stats.mean : (a: WaitRow, b: WaitRow) => b.stats.mean - a.stats.mean;
+	return rows.sort((a, b) => cmp(a, b) || a.name.localeCompare(b.name, 'el'));
 }
 
 // ---- readable text on a mixed tone (the matrix cells) ----

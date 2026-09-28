@@ -145,13 +145,19 @@
 				{ sticky: true, className: 'atlas-km' }
 			)
 		);
+		// The nearest site may lie outside the prefecture's points: mark it with the line.
+		if (!located.includes(p)) {
+			const where = p.prefectureId != null ? prefLabel(idx.prefById.get(p.prefectureId)) : '';
+			g.addLayer(L.marker(b, { icon: iconFor(p, true), keyboard: false }).bindTooltip(`${providerName(p)}${where ? ` · ${where}` : ''} · πλησιέστερο`, { direction: 'top', offset: [0, -6], className: 'atlas-km' }));
+		}
 		lineLayer = g.addTo(map);
 	}
 
 	// Frame the view when what we look at changes (not on sector toggles or cell selection).
 	function frame() {
 		if (!L || !map) return;
-		const sig = `${selection.mode}|${selection.prefectureId}|${selection.specialtyId}`;
+		const far = line?.near?.provider ?? null;
+		const sig = `${selection.mode}|${selection.prefectureId}|${selection.specialtyId}|${far?.id ?? ''}`;
 		if (sig === lastFrame) return;
 		lastFrame = sig;
 		const pts: Leaflet.LatLngTuple[] = [];
@@ -159,6 +165,8 @@
 			const pref = idx.prefById.get(selection.prefectureId);
 			if (pref) pts.push([pref.seat.lat, pref.seat.lon]);
 			for (const p of located) if (p.prefectureId === selection.prefectureId) pts.push([p.lat!, p.lon!]);
+			// A prefecture with none of its own: frame the seat with its nearest site.
+			if (far && pts.length === 1) pts.push([far.lat!, far.lon!]);
 		} else {
 			for (const p of located) pts.push([p.lat!, p.lon!]);
 			for (const pref of data.prefectures) pts.push([pref.seat.lat, pref.seat.lon]);

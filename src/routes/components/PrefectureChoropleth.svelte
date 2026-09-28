@@ -463,14 +463,7 @@
 	</div>
 
 	<p class="foot">
-		{#if waitMode}
-			Ημέρες από τη σάρωση. Χωρίς ημερομηνία δεν σημαίνει μηδέν αναμονή.
-		{:else if rateMode}
-			Μηδέν: δεν καταγράφεται στον κατάλογο.
-		{:else}
-			Διάλεξε ειδικότητα για την αναλογία ανά 100.000.
-		{/if}
-		Όρια © <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a> (ODbL) · <a href="https://www.geoboundaries.org/" rel="noopener">geoBoundaries</a> (CC BY 4.0).
+		{#if waitMode}Ημέρες από τη σάρωση. · {:else if rateMode}0 = εκτός καταλόγου. · {/if}Όρια © <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a>, <a href="https://www.geoboundaries.org/" rel="noopener">geoBoundaries</a>
 	</p>
 </figure>
 
@@ -680,7 +673,7 @@
 	}
 	.foot {
 		margin: 0;
-		font-size: 0.72rem;
+		font-size: 0.68rem;
 		color: var(--ink-3);
 		max-width: 80ch;
 	}

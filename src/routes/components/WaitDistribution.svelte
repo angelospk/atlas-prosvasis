@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { AtlasData, Selection } from '$lib/atlas/types';
 	import { SECTORS, SECTOR_LABEL } from '$lib/atlas/types';
-	import { buildIndex, fmtDay, fmtStat, parseKey, plural, providerName, selectionLabel, titleCase, toCsv, waitRows } from './format';
+	import { buildIndex, fmtDay, fmtStat, parseKey, plural, providerName, selectionLabel, titleCase, toCsv, waitRows, type WaitOrder } from './format';
 	import { dayAxis, WAIT_FILL, WAIT_LABEL, waitClass, waitPoints, waitSamples, type WaitPoint } from './waits';
 	import { downloadText } from './download';
 	// A ranked range plot: one line per row on a shared day axis. The bar runs from the first to
@@ -13,7 +13,8 @@
 	} = $props();
 	const uid = $props.id();
 	const idx = $derived(buildIndex(data));
-	const rows = $derived(waitRows(data, idx, selection));
+	let order = $state<WaitOrder>('mean');
+	const rows = $derived(waitRows(data, idx, selection, order));
 	let showingAll = $state(false);
 	let hovered = $state<{ key: string; days: number } | null>(null);
 	let pinned = $state<{ key: string; days: number } | null>(null);
@@ -59,7 +60,15 @@
 <section id="atlas-waits" class="waits" aria-labelledby={`${uid}-title`}>
 	<header class="head">
 		<div><h2 id={`${uid}-title`}>Αναμονή για ραντεβού</h2><p class="sub">{selectionLabel(idx, selection)} · ημέρες από τη σάρωση της {fmtDay(data.scan.at)}</p></div>
-		<button class="tool" onclick={exportCsv}>CSV</button>
+		<div class="tools">
+			{#if rows.length > 1}<label class="order">Ταξινόμηση
+				<select bind:value={order}>
+					<option value="mean">Μεγαλύτερη μέση αναμονή</option>
+					<option value="first">Νωρίτερο πρώτο ραντεβού</option>
+				</select>
+			</label>{/if}
+			<button class="tool" onclick={exportCsv}>CSV</button>
+		</div>
 	</header>
 	{#if rows.length === 0}
 		<p class="empty">Κανένα σημείο με ημερομηνία ραντεβού για αυτή την επιλογή.</p>
@@ -148,7 +157,10 @@
 
 <style>
 	.waits { display:grid; gap:1rem; min-width:0; scroll-margin-top:calc(var(--atlas-bar-height, 0px) + 16px); }
-	.head { display:flex; justify-content:space-between; align-items:end; gap:1rem; }
+	.head { display:flex; justify-content:space-between; align-items:end; gap:1rem; flex-wrap:wrap; }
+	.tools { display:flex; align-items:end; gap:.6rem; flex-wrap:wrap; }
+	.order { display:grid; gap:.2rem; font-size:.78rem; color:var(--ink-3); }
+	.order select { min-height:44px; max-width:100%; border:1px solid var(--line-2); border-radius:var(--r-ctl); background:var(--card); color:var(--ink); padding:0 .45rem; font:inherit; font-size:16px; }
 	h2 { font-size:clamp(1.4rem,2.6vw,1.9rem); } .sub,.note { margin:.3rem 0 0; font-size:.82rem; color:var(--ink-3); } .note { margin:0; }
 	.legend { display:flex; gap:.4rem 1rem; flex-wrap:wrap; font-size:.75rem; color:var(--ink-2); }
 	.legend span { display:flex; gap:.4rem; align-items:center; } .legend i { width:10px; height:10px; border-radius:50%; box-shadow:0 0 0 1px #152c3b40; }
@@ -161,7 +173,7 @@
 	.row { display:grid; grid-template-columns:var(--cols); gap:1.2rem; align-items:center; padding:.35rem 0; border-bottom:1px solid var(--paper-2); }
 	.row:last-child { border-bottom:0; }
 	.name { display:flex; flex-direction:column; min-width:0; } .name h3 { font:600 .9rem var(--sans); overflow-wrap:anywhere; } .meta { display:flex; align-items:center; gap:.4rem; font-size:.7rem; color:var(--ink-3); } .mix { display:inline-flex; gap:2px; }
-	.to-map { padding:0; min-height:0; background:none; border:0; font:inherit; color:inherit; text-align:left; cursor:pointer; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px; } .to-map:hover { text-decoration-color:var(--accent); }
+	.to-map { padding:.2rem 0; min-height:24px; background:none; border:0; font:inherit; color:inherit; text-align:left; cursor:pointer; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px; } .to-map:hover { text-decoration-color:var(--accent); }
 	.plot { position:relative; min-width:0; margin-inline:10px; }
 	.grid i { position:absolute; top:0; bottom:0; width:1px; background:var(--paper-2); }
 	.range { position:absolute; top:calc(16px + 10px); height:4px; min-width:4px; transform:translateX(-2px); border-radius:2px; background:#b9cbd6; }

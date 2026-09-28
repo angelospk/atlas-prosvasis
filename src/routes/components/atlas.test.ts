@@ -57,6 +57,10 @@ import { contrast, mixOklab, readableText } from './format';
 import { pickerHidden, readAtlasUrl, sectorPickerHidden, widgetUrl, writeAtlasUrl } from '$lib/atlas/url';
 import { prefLabel } from './format';
 import AtlasFooter from './AtlasFooter.svelte';
+import HeroConstellation from './HeroConstellation.svelte';
+import KeyFindings from './KeyFindings.svelte';
+import { uniqueSites } from './format';
+import { FEATURED, FEATURED_VISIBLE, featured, forSpecialty, insights } from './insights';
 import { SECTION_IDS, calculateActiveSection } from './navigation';
 
 const data = fixture as unknown as AtlasData;
@@ -264,7 +268,7 @@ describe('server render', () => {
 		expect(withSites).toContain(providerName(first));
 		expect(withSites).toContain(titleCase(first.city));
 		// Αιτωλοακαρνανία × Αναισθησιολόγος: nothing there, the nearest is 153 km away.
-		const none = render(CoverageList, { props: { data, selection: { ...sel, prefectureId: 1 }, sort: 'count', onSort: noop, selectedKey: '1:6', onSelect: noop } }).body;
+		const none = render(CoverageList, { props: { data, selection: { ...sel, prefectureId: 1, specialtyId: 6 }, sort: 'count', onSort: noop, selectedKey: '1:6', onSelect: noop } }).body;
 		expect(none).toContain('Δεν καταγράφεται σημείο');
 		expect(none).toContain('Πλησιέστερο:');
 		expect(none).toContain('153 χλμ');
@@ -587,8 +591,16 @@ describe('waits (box plot)', () => {
 		expect(spec.every((r) => r.key.endsWith(':16'))).toBe(true);
 		const one = waitRows(data, idx, { ...all, prefectureId: 20, specialtyId: 16 });
 		expect(one.length).toBeLessThanOrEqual(1);
-		// longest typical wait first
-		for (let i = 1; i < none.length; i++) expect(none[i - 1].stats.median).toBeGreaterThanOrEqual(none[i].stats.median);
+		// by default the longest mean wait first: the figure each row shows
+		for (let i = 1; i < none.length; i++) expect(none[i - 1].stats.mean).toBeGreaterThanOrEqual(none[i].stats.mean);
+		// or the soonest first appointment first
+		const first = waitRows(data, idx, all, 'first');
+		for (let i = 1; i < first.length; i++) expect(first[i - 1].stats.min).toBeLessThanOrEqual(first[i].stats.min);
+	});
+	it('WaitDistribution offers both orders', () => {
+		const html = render(WaitDistribution, { props: { data, selection: all, onShowOnMap: () => {} } }).body;
+		expect(html).toContain('Μεγαλύτερη μέση αναμονή');
+		expect(html).toContain('Νωρίτερο πρώτο ραντεβού');
 	});
 	it('renders wait rows with a distribution and says how many sites had a date', () => {
 		const html = render(WaitDistribution, { props: { data, selection: all, onShowOnMap: () => {} } }).body;
@@ -676,6 +688,53 @@ describe('round 2: brand, copy, embeds and contrast', () => {
 		expect(sectorPickerHidden(new URL('https://x.test/?specialty_picker=0'))).toBe(false);
 		expect(writeAtlasUrl(new URL('https://x.test/embed/list?sector_picker=0'), s, 'coverage').searchParams.get('sector_picker')).toBe('0');
 	});
+	it('key findings: public-care headlines with stable ids, each with a map and a detail action', () => {
+		const all = insights(data);
+		expect(new Set(all.map((i) => i.id)).size).toBe(all.length);
+		for (const i of all) expect(i.selection.sectors?.length).toBeGreaterThan(0);
+		// «Δες αναλυτικά» on the point map only when there is a cell to show.
+		for (const i of all) if (i.detail === 'points') expect(i.evidenceKey).not.toBeNull();
+		const chosen = featured(data);
+		const picked = FEATURED.filter((id) => all.some((i) => i.id === id));
+		expect(chosen.map((i) => i.id).slice(0, picked.length)).toEqual(picked);
+		expect(chosen.slice(picked.length).every((i) => i.id.startsWith('gap-'))).toBe(true);
+		const html = render(KeyFindings, { props: { data, onMap: () => {}, onDetail: () => {} } }).body;
+		expect(html).toContain('Τα δεδομένα έδειξαν ότι…');
+		const visible = Math.min(chosen.length, FEATURED_VISIBLE);
+		expect((html.match(/>Φόρτωσε στον χάρτη</g) ?? []).length).toBe(visible);
+		expect((html.match(/>Δες αναλυτικά</g) ?? []).length).toBe(visible);
+		if (chosen.length > FEATURED_VISIBLE) expect(html).toContain(`Περισσότερα ευρήματα (${chosen.length - FEATURED_VISIBLE})`);
+		expect(html).not.toContain('—');
+	});
+	it('MetricSummary: sets open underneath; a specialty with no site anywhere is not «unmeasured»', () => {
+		const place: Selection = { mode: 'place', prefectureId: 20, specialtyId: null, sectors: [...SECTORS] };
+		const html = render(MetricSummary, { props: { data, selection: place } }).body;
+		expect(html).toContain('class="more');
+		expect(html).toContain('aria-expanded="false"');
+		// Remove every provider of one specialty: it is missing everywhere, so not «χωρίς μέτρηση».
+		const gone = data.specialties[0].id;
+		const stripped = { ...data, providers: data.providers.filter((p) => !p.specialtyIds.includes(gone)), cells: data.cells.map((c) => (c.specialtyId === gone ? { ...c, counts: { esy: 0, pfy: 0, eopyy: 0, private: 0 }, nearestKm: null, nearestProviderId: null, nearestPublicKm: null, nearestPublicProviderId: null } : c)) };
+		expect(render(MetricSummary, { props: { data: stripped, selection: place } }).body).not.toContain('Χωρίς μέτρηση');
+		// The sites panel counts each provider once, however many specialties it has.
+		const [a, b] = data.specialties;
+		const two = { ...data, providers: [{ ...data.providers[0], sector: 'esy' as const, prefectureId: 20, specialtyIds: [a.id, b.id] }] };
+		expect(uniqueSites(two, { mode: 'place', prefectureId: null, specialtyId: null, sectors: ['esy', 'pfy'] })).toHaveLength(1);
+		expect(uniqueSites(two, { mode: 'place', prefectureId: 20, specialtyId: b.id, sectors: ['esy'] })).toHaveLength(1);
+		expect(uniqueSites(two, { mode: 'place', prefectureId: 21, specialtyId: null, sectors: [...SECTORS] })).toHaveLength(0);
+	});
+	it('forSpecialty puts a doctor title in the accusative and leaves fields alone', () => {
+		expect(forSpecialty('Ουρολόγος')).toBe('ουρολόγο');
+		expect(forSpecialty('Μαιευτήρας-γυναικολόγος')).toBe('μαιευτήρα-γυναικολόγο');
+		expect(forSpecialty('Ωτορινολαρυγγολόγος (ΩΡΛ)')).toBe('ωτορινολαρυγγολόγο (ΩΡΛ)');
+		expect(forSpecialty('Γενική/οικογενειακή ιατρική')).toBe('γενική/οικογενειακή ιατρική');
+	});
+	it('the header drawing is decorative: one outline and a point per prefecture seat, still under reduced motion', () => {
+		const html = render(HeroConstellation, { props: { data, boundaries } }).body;
+		expect(html).toContain('aria-hidden="true"');
+		expect((html.match(/<path /g) ?? []).length).toBe(1);
+		expect((html.match(/class="dot/g) ?? []).length).toBe(data.prefectures.length);
+		expect((html.match(/class="ring/g) ?? []).length).toBe(data.prefectures.length);
+	});
 	it('the favicon is the atlas mark, and the page has no tagline', () => {
 		const favicon = readFileSync(new URL('../../../static/favicon.svg', import.meta.url), 'utf8');
 		expect(favicon).not.toContain('svelte');
@@ -749,5 +808,44 @@ describe('privacy and tap targets', () => {
 		for (const p of points) lanes.set(p.lane, [...(lanes.get(p.lane) ?? []), p.days / 100]);
 		for (const xs of lanes.values()) for (let i = 1; i < xs.length; i++) expect(xs[i] - xs[i - 1]).toBeGreaterThanOrEqual(0.2);
 		expect(lanes.size).toBe(4); // 20 and 60 fit back into the first lane
+	});
+});
+
+describe('index speed', () => {
+	it('builds one index per report, shared by every component', () => {
+		expect(buildIndex(data)).toBe(idx);
+	});
+	it('finds a cell’s providers without scanning every provider of the specialty', () => {
+		for (const cell of data.cells) {
+			const slow = data.providers.filter((p) => p.prefectureId === cell.prefectureId && p.specialtyIds.includes(cell.specialtyId) && p.sector !== 'private');
+			expect(providersIn(idx, cell.prefectureId, cell.specialtyId, ['esy', 'pfy', 'eopyy'])).toEqual(slow);
+		}
+	});
+});
+
+describe('prefecture and specialty together', () => {
+	const sel: Selection = { mode: 'place', prefectureId: 20, specialtyId: 16, sectors: [...SECTORS] };
+	const noop = () => {};
+	it('CoverageList shows only that specialty, with a way back to the whole prefecture', () => {
+		const html = render(CoverageList, { props: { data, selection: sel, sort: 'count', onSort: noop, selectedKey: '20:16', onSelect: noop, onShowAll: noop } }).body;
+		expect(html.match(/data-key="/g)).toHaveLength(1);
+		expect(html).toContain('data-key="20:16"');
+		expect(html).toContain('Όλες οι ειδικότητες στον Ν. Ιωαννίνων');
+		const place = render(CoverageList, { props: { data, selection: { ...sel, specialtyId: null }, sort: 'count', onSort: noop, selectedKey: null, onSelect: noop, onShowAll: noop } }).body;
+		expect(place).not.toContain('Όλες οι ειδικότητες στον');
+	});
+	it('MetricSummary speaks of that specialty in that prefecture, not the whole prefecture', () => {
+		const html = render(MetricSummary, { props: { data, selection: sel } }).body;
+		const n = providersIn(idx, 20, 16, [...SECTORS]).length;
+		expect(html).toContain('Καρδιολόγος');
+		expect(html).toContain(`aria-label="Σημεία παροχής: ${n}"`);
+		expect(html).not.toContain('ειδικότητες με πάροχο');
+		expect(html).toContain('Πρώτο ραντεβού');
+	});
+	it('«Σημεία παροχής» counts each site once, the same number its panel opens with', () => {
+		for (const selection of [{ ...sel, specialtyId: null }, all, { ...sel, prefectureId: null, mode: 'specialty' as const }]) {
+			const html = render(MetricSummary, { props: { data, selection } }).body;
+			expect(html).toContain(`aria-label="Σημεία παροχής: ${uniqueSites(data, selection).length}"`);
+		}
 	});
 });

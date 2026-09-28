@@ -34,7 +34,8 @@
 		onSelect,
 		compact = false,
 		expanded = false,
-		onExpandedChange = (_expanded: boolean) => {}
+		onExpandedChange = (_expanded: boolean) => {},
+		onShowAll = null
 	}: {
 		data: AtlasData;
 		selection: Selection;
@@ -45,11 +46,16 @@
 		compact?: boolean;
 		expanded?: boolean;
 		onExpandedChange?: (expanded: boolean) => void;
+		/** With a prefecture and a specialty chosen: drop the specialty, back to all of the prefecture. */
+		onShowAll?: (() => void) | null;
 	} = $props();
 
 	const idx = $derived(buildIndex(data));
 	const uid = $props.id();
-	const rows = $derived(sortRows(deriveRows(data, idx, selection), sort));
+	// A prefecture and a specialty together narrow the list to that one row.
+	const cell = $derived(selection.mode === 'place' && selection.prefectureId != null && selection.specialtyId != null ? `${selection.prefectureId}:${selection.specialtyId}` : null);
+	const cellPref = $derived(selection.prefectureId == null ? null : (idx.prefById.get(selection.prefectureId) ?? null));
+	const rows = $derived(sortRows(deriveRows(data, idx, selection).filter((r) => cell == null || r.key === cell), sort));
 	const shown = $derived(compact && !expanded ? rows.slice(0, 8) : rows);
 	const national = $derived(selection.mode === 'place' && selection.prefectureId == null);
 	const nameHead = $derived(selection.mode === 'specialty' ? 'Νομός' : 'Ειδικότητα');
@@ -117,14 +123,14 @@
 			<p class="note">Φορείς: {SECTORS.map((s) => SECTOR_SHORT[s]).join(' · ')}. Αποστάσεις από την έδρα, σε ευθεία.</p>
 			{#if compact}<p class="note">Οι ημέρες μετρούν από τη σάρωση.</p>{/if}
 		</div>
-		<label class="mobile-sort" for={`${uid}-sort`}>Ταξινόμηση
+		{#if cell == null}<label class="mobile-sort" for={`${uid}-sort`}>Ταξινόμηση
 			<select id={`${uid}-sort`} value={sort} onchange={(event) => onSort((event.currentTarget as HTMLSelectElement).value as Metric)}>
 				<option value="count">Περισσότερα σημεία</option>
 				<option value="per100k">Ανά 100.000 κατοίκους</option>
 				<option value="earliestDate">Νωρίτερο ραντεβού</option>
 				<option value="nearestKm">Μεγαλύτερη απόσταση</option>
 			</select>
-		</label>
+		</label>{/if}
 	</header>
 
 	<div class="table" role="table" aria-label="Κάλυψη">
@@ -189,6 +195,9 @@
 		</ol>
 	</div>
 
+	{#if cell != null && onShowAll && cellPref}
+		<button type="button" class="expand" onclick={onShowAll}>Όλες οι ειδικότητες στον {prefLabel(cellPref)}</button>
+	{/if}
 	{#if compact && rows.length > 8}
 		<button type="button" class="expand" aria-expanded={expanded} aria-controls={listId} onclick={() => changeExpanded(!expanded)}>{expanded ? 'Λιγότερες' : 'Περισσότερες'}</button>
 	{/if}
