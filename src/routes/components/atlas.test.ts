@@ -54,7 +54,7 @@ import WaitDistribution from './WaitDistribution.svelte';
 import Page from '../+page.svelte';
 import { dayAxis, WAIT_FILL, waitClass, waitPoints, waitSamples } from './waits';
 import { contrast, mixOklab, readableText } from './format';
-import { pickerHidden, readAtlasUrl, widgetUrl, writeAtlasUrl } from '$lib/atlas/url';
+import { pickerHidden, readAtlasUrl, sectorPickerHidden, widgetUrl, writeAtlasUrl } from '$lib/atlas/url';
 import { prefLabel } from './format';
 import AtlasFooter from './AtlasFooter.svelte';
 import { SECTION_IDS, calculateActiveSection } from './navigation';
@@ -665,6 +665,16 @@ describe('round 2: brand, copy, embeds and contrast', () => {
 		expect(pickerHidden(new URL('https://x.test/?specialty_picker=no'))).toBe(false);
 		// Writing the selection back keeps the flag.
 		expect(writeAtlasUrl(new URL('https://x.test/embed/waits?specialty_picker=0'), s, 'coverage').searchParams.get('specialty_picker')).toBe('0');
+	});
+	it('a share link can lock the sectors too (sector_picker=0), only for widgets that depend on them', () => {
+		const s: Selection = { mode: 'specialty', prefectureId: null, specialtyId: 16, sectors: ['esy', 'pfy'] };
+		expect(widgetUrl('coverage', s, 'coverage', 'https://x.test', true, false).href).toBe('https://x.test/embed/coverage?specialty=16&sectors=esy%2Cpfy&sector_picker=0');
+		expect(widgetUrl('coverage', s, 'coverage', 'https://x.test').searchParams.has('sector_picker')).toBe(false);
+		expect(widgetUrl('matrix', s, 'coverage', 'https://x.test', true, false).searchParams.get('sector_picker')).toBe('0');
+		expect(widgetUrl('changes', s, 'coverage', 'https://x.test', true, false).searchParams.has('sector_picker')).toBe(false);
+		expect(sectorPickerHidden(new URL('https://x.test/?sector_picker=0'))).toBe(true);
+		expect(sectorPickerHidden(new URL('https://x.test/?specialty_picker=0'))).toBe(false);
+		expect(writeAtlasUrl(new URL('https://x.test/embed/list?sector_picker=0'), s, 'coverage').searchParams.get('sector_picker')).toBe('0');
 	});
 	it('the favicon is the atlas mark, and the page has no tagline', () => {
 		const favicon = readFileSync(new URL('../../../static/favicon.svg', import.meta.url), 'utf8');

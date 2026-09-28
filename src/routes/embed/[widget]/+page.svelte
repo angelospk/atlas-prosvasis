@@ -3,9 +3,9 @@
 	import { replaceState } from '$app/navigation';
 	import '../../components/atlas.css';
 	import type { AtlasReport, Metric, PrefectureBoundaries, Selection } from '$lib/atlas/types';
-	import { SECTORS } from '$lib/atlas/types';
-	import { pickerHidden, PUBLIC_SITE, readAtlasUrl, SPECIALTY_WIDGETS, writeAtlasUrl, WIDGET_LABELS, type MapMetric, type Widget } from '$lib/atlas/url';
-	import { parseKey, titleCase } from '../../components/format';
+	import { SECTORS, SECTOR_LABEL, type Sector } from '$lib/atlas/types';
+	import { pickerHidden, PUBLIC_SITE, readAtlasUrl, SECTOR_WIDGETS, sectorPickerHidden, SPECIALTY_WIDGETS, writeAtlasUrl, WIDGET_LABELS, type MapMetric, type Widget } from '$lib/atlas/url';
+	import { orderSectors, parseKey, SECTOR_SHORT, titleCase } from '../../components/format';
 	import AtlasFooter from '../../components/AtlasFooter.svelte';
 	import MetricSummary from '../../components/MetricSummary.svelte';
 	import CoverageList from '../../components/CoverageList.svelte';
@@ -32,6 +32,14 @@
 	let ready = $state(false);
 	// Shown only after the query is read, so a locked embed never flashes the picker.
 	let specialtyPicker = $state(false);
+	let sectorPicker = $state(false);
+	// Same rule as the full atlas: at least one sector stays on.
+	function toggleSector(s: Sector) {
+		const on = selection.sectors.includes(s);
+		if (on && selection.sectors.length === 1) return;
+		selectedKey = null;
+		update({ sectors: on ? selection.sectors.filter((x) => x !== s) : orderSectors([...selection.sectors, s]) });
+	}
 	// A new specialty drops the selected cell, so the point map does not keep the old one's line.
 	const pickSpecialty = (specialtyId: number | null) => { selectedKey = null; update({ specialtyId }); };
 	const sortedSpecs = $derived(data ? [...data.specialties].sort((a, b) => titleCase(a.name).localeCompare(titleCase(b.name), 'el')) : []);
@@ -77,6 +85,7 @@
 			const url = new URL(window.location.href);
 			const state = readAtlasUrl(url, data);
 			specialtyPicker = !pickerHidden(url);
+			sectorPicker = !sectorPickerHidden(url);
 			selection = state.selection;
 			metric = state.metric;
 			if (selection.prefectureId != null && selection.specialtyId != null) selectedKey = `${selection.prefectureId}:${selection.specialtyId}`;
@@ -108,6 +117,14 @@
 				</select>
 			</label>
 		{/if}
+		{#if sectorPicker && SECTOR_WIDGETS.includes(widget)}
+			<div class="sectors" role="group" aria-label="Φορείς">
+				{#each SECTORS as s (s)}
+					{@const on = selection.sectors.includes(s)}
+					<button type="button" class="chip" class:on aria-pressed={on} title={on && selection.sectors.length === 1 ? 'Τουλάχιστον ένας φορέας μένει ενεργός' : SECTOR_LABEL[s]} disabled={on && selection.sectors.length === 1} onclick={() => toggleSector(s)}><span class="smark {s}" class:off={!on} aria-hidden="true"></span>{SECTOR_SHORT[s]}</button>
+				{/each}
+			</div>
+		{/if}
 		{#if widget === 'coverage' && page.boundaries}
 			<PrefectureChoropleth {data} boundaries={page.boundaries} {selection} onSelect={(prefectureId) => update({ prefectureId: selection.prefectureId === prefectureId ? null : prefectureId })} {metric} onMetric={(m) => { metric = m; sync(); }} onSpecialty={specialtyPicker ? pickSpecialty : null} />
 		{:else if widget === 'points'}
@@ -137,5 +154,9 @@
 	.embed { display: grid; gap: 1rem; padding: clamp(0.75rem, 3vw, 1.25rem); min-width: 0; max-width: 1200px; margin: 0 auto; }
 	:global(body:has(.embed)) { background: var(--card, #fff); }
 	.spec { display: grid; gap: 0.25rem; max-width: 22rem; font-size: 0.78rem; font-weight: 600; color: var(--ink-2); }
+	.sectors { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+	.chip { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; padding: 0 0.75rem; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); font: inherit; font-size: 0.84rem; font-weight: 500; color: var(--ink-3); cursor: pointer; }
+	.chip.on { color: var(--ink); border-color: var(--ink); }
+	.chip:disabled { cursor: default; }
 	.spec select { height: 44px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); color: var(--ink); padding: 0 0.5rem; font: inherit; font-size: 16px; }
 </style>

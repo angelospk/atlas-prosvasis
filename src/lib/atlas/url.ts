@@ -58,8 +58,15 @@ export const SPECIALTY_WIDGETS: readonly Widget[] = ['coverage', 'points', 'wait
 export const PICKER_PARAM = 'specialty_picker';
 export const pickerHidden = (url: URL) => url.searchParams.get(PICKER_PARAM) === '0';
 
-export function widgetUrl(widget: Widget, selection: Selection, metric: MapMetric, origin = PUBLIC_SITE, specialtyPicker = true): URL {
+/** Widgets whose content depends on the sectors, so an embed can offer sector toggles. */
+export const SECTOR_WIDGETS: readonly Widget[] = ['coverage', 'points', 'waits', 'list', 'summary', 'matrix', 'specialties', 'ranking'];
+/** `?sector_picker=0` hides the embed's sector toggles; anything else (or nothing) shows them. */
+export const SECTOR_PICKER_PARAM = 'sector_picker';
+export const sectorPickerHidden = (url: URL) => url.searchParams.get(SECTOR_PICKER_PARAM) === '0';
+
+export function widgetUrl(widget: Widget, selection: Selection, metric: MapMetric, origin = PUBLIC_SITE, specialtyPicker = true, sectorPicker = true): URL {
 	const url = writeAtlasUrl(new URL(`/embed/${widget}`, origin), selection, metric);
 	if (!specialtyPicker && SPECIALTY_WIDGETS.includes(widget)) url.searchParams.set(PICKER_PARAM, '0');
+	if (!sectorPicker && SECTOR_WIDGETS.includes(widget)) url.searchParams.set(SECTOR_PICKER_PARAM, '0');
 	return url;
 }

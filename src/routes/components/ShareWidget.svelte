@@ -1,12 +1,13 @@
 <script lang="ts">
 	import type { Selection } from '$lib/atlas/types';
-	import { SPECIALTY_WIDGETS, widgetUrl, WIDGET_LABELS, type MapMetric, type Widget } from '$lib/atlas/url';
+	import { SECTOR_WIDGETS, SPECIALTY_WIDGETS, widgetUrl, WIDGET_LABELS, type MapMetric, type Widget } from '$lib/atlas/url';
 	let { widget, selection, metric = 'coverage' }: { widget: Widget; selection: Selection; metric?: MapMetric } = $props();
 	const uid = $props.id();
 	let open = $state(false);
 	let status = $state('');
 	let specialtyPicker = $state(true);
-	const url = $derived(widgetUrl(widget, selection, metric, undefined, specialtyPicker).href);
+	let sectorPicker = $state(true);
+	const url = $derived(widgetUrl(widget, selection, metric, undefined, specialtyPicker, sectorPicker).href);
 	const code = $derived(`<iframe src="${url.replaceAll('&', '&amp;')}" title="${WIDGET_LABELS[widget]} · Άτλας πρόσβασης" width="100%" height="800" style="border:0" loading="lazy"></iframe>`);
 	async function copy(value: string) { try { await navigator.clipboard.writeText(value); status = 'Αντιγράφηκε'; } catch { status = 'Επίλεξε και αντέγραψε το κείμενο παρακάτω.'; open = true; } }
 </script>
@@ -15,6 +16,7 @@
 	{#if open}<div class="panel" id={`${uid}-panel`}>
 		<a href={url} target="_blank" rel="noopener">Άνοιγμα widget ↗</a>
 		{#if SPECIALTY_WIDGETS.includes(widget)}<label class="check"><input type="checkbox" bind:checked={specialtyPicker} />Ο αναγνώστης αλλάζει ειδικότητα</label>{/if}
+		{#if SECTOR_WIDGETS.includes(widget)}<label class="check"><input type="checkbox" bind:checked={sectorPicker} />Ο αναγνώστης αλλάζει φορείς</label>{/if}
 		<label>Σύνδεσμος<input readonly value={url} onclick={(e) => e.currentTarget.select()} /></label><button onclick={() => copy(url)}>Αντιγραφή συνδέσμου</button>
 		<label>Κώδικας ενσωμάτωσης<textarea readonly rows="3" value={code} onclick={(e) => e.currentTarget.select()}></textarea></label><button onclick={() => copy(code)}>Αντιγραφή iframe</button>
 		<span role="status">{status}</span>
