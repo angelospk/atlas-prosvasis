@@ -723,6 +723,8 @@ export interface WaitRow {
 	name: string;
 	/** Sites in scope, with or without a date. */
 	sites: number;
+	/** The same sites by sector. */
+	counts: Record<Sector, number>;
 	/** Sorted day offsets used to calculate `stats`, including duplicate samples. */
 	values: number[];
 	stats: WaitStats;
@@ -749,7 +751,8 @@ export function waitRows(data: AtlasData, idx: AtlasIndex, selection: Selection)
 			.filter((d): d is number => d != null && d >= 0);
 		const values = days.sort((a, b) => a - b);
 		const stats = waitStats(values);
-		if (stats) rows.push({ key: cellKey(p.prefectureId, p.specialtyId), name: p.name, sites: sites.length, values, stats });
+		const counts = Object.fromEntries(SECTORS.map((s) => [s, sites.filter((x) => x.sector === s).length])) as Record<Sector, number>;
+		if (stats) rows.push({ key: cellKey(p.prefectureId, p.specialtyId), name: p.name, sites: sites.length, counts, values, stats });
 	}
 	return rows.sort((a, b) => b.stats.median - a.stats.median || a.name.localeCompare(b.name, 'el'));
 }

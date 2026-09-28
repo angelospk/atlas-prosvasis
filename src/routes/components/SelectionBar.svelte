@@ -1,12 +1,12 @@
 <script lang="ts">
 	import type { AtlasData, Sector, Selection } from '$lib/atlas/types';
 	import { SECTORS } from '$lib/atlas/types';
-	import { fold, orderSectors, SECTOR_SHORT, sectorsLabel, titleCase } from './format';
+	import { fold, isDefaultSelection, orderSectors, SECTOR_SHORT, sectorsLabel, titleCase } from './format';
 	import Combobox, { type ComboOption } from './Combobox.svelte';
 
-	// The pickers of the sticky navigation bar: prefecture, specialty and sectors.
+	// The pickers of the sticky navigation bar: prefecture, specialty, sectors and the reset beside them.
 	// Searchable comboboxes on desktop, native selects on touch and narrow screens.
-	let { data, selection, onChange }: { data: AtlasData; selection: Selection; onChange: (s: Selection) => void } = $props();
+	let { data, selection, onChange, onReset = () => {} }: { data: AtlasData; selection: Selection; onChange: (s: Selection) => void; onReset?: () => void } = $props();
 
 	const uid = $props.id();
 
@@ -26,6 +26,7 @@
 	]);
 
 	const allSectors = $derived(selection.sectors.length === SECTORS.length);
+	const dirty = $derived(!isDefaultSelection(selection));
 
 	function emit(next: Partial<Selection>) {
 		const s = { ...selection, ...next };
@@ -77,6 +78,7 @@
 			{/each}
 		</div>
 	</details>
+	{#if dirty}<button type="button" class="reset" onclick={onReset} title="Καθαρισμός επιλογών"><span aria-hidden="true">×</span><span class="sr-only">Καθαρισμός</span></button>{/if}
 </div>
 
 <style>
@@ -94,13 +96,16 @@
 	.chips { position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; display: grid; gap: 0.3rem; padding: 0.5rem; background: var(--card); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: var(--shadow); min-width: 12rem; }
 	.chip { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 44px; padding: 0 0.75rem; border: 1px solid var(--line-2); border-radius: 6px; background: var(--card); font-size: 0.86rem; font-weight: 500; color: var(--ink-2); cursor: pointer; }
 	.chip.on { color: var(--ink); border-color: var(--ink); }
-	summary:hover { background: #ffffff1f; }
+	summary:hover, .reset:hover { background: #ffffff1f; }
+	.reset { flex: none; width: 38px; height: 38px; min-height: 38px; display: grid; place-items: center; border: 1px solid #ffffff59; border-radius: var(--r-ctl); background: none; color: #fff; font-size: 1.2rem; line-height: 1; cursor: pointer; }
+	.reset:focus-visible { outline: 2px solid #f2c56e; outline-offset: 2px; }
 	.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 	@media (max-width: 899px), (pointer: coarse) {
 		.pickers { flex: 1; }
 		.desktop-pickers { display: none; }
 		.native-pickers { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.35rem; flex: 1; min-width: 0; }
 		summary { height: 40px; min-height: 40px; padding: 0 0.45rem; }
+		.reset { width: 40px; height: 40px; min-height: 40px; }
 	}
 	@media (max-width: 420px) {
 		.slabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

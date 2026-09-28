@@ -495,8 +495,14 @@ describe('server render (weekly layer)', () => {
 		expect(html).toContain('26 Σεπτεμβρίου 2026');
 		expect(html).toContain('19 Σεπ');
 		for (const f of report.findings.slice(0, 4)) expect(html).toContain(f.text.slice(0, 40));
+		// Every finding with a selection goes to the map; only one with a site has «Δες αναλυτικά».
+		const shown = report.findings.slice(0, 4);
+		expect((html.match(/>Δες το στον χάρτη</g) ?? []).length).toBe(shown.filter((f) => f.selection).length);
+		expect((html.match(/>Δες αναλυτικά</g) ?? []).length).toBe(shown.filter((f) => f.selection && f.evidenceKey).length);
+		// Each action is described by its finding's text, so screen readers can tell them apart.
+		for (const f of shown.filter((f) => f.selection)) expect(html).toContain(`aria-describedby="finding-${f.id}"`);
 	});
-	it('PrefectureChoropleth draws the 51 paths once, a legend with class counts and the credits', () => {
+	it('PrefectureChoropleth draws the 51 paths once, a legend without per-class counts and the credits', () => {
 		const html = render(PrefectureChoropleth, { props: { data, boundaries, selection: sel, onSelect: noop } }).body;
 		expect(html).toContain('Σημεία με ραντεβού ανά 100.000 κατοίκους: Καρδιολόγος');
 		expect(html).toContain('όλοι οι φορείς');
@@ -508,13 +514,11 @@ describe('server render (weekly layer)', () => {
 		expect(html).toContain('OpenStreetMap');
 		expect(html).toContain('geoBoundaries');
 		expect(html).not.toContain('Διάλεξε νομό'); // a tap on the map picks the prefecture
-		// Every prefecture is a class; the legend counts sum to 51.
+		// Every prefecture is a class; the legend names the classes without counting them.
 		const rows = deriveRows(data, idx, sel);
 		const classes = rows.map((r) => rateClass(r.per100k));
 		expect(classes.every((c) => c != null)).toBe(true);
-		const zeros = classes.filter((c) => c === 0).length;
-		expect(html).toContain(`<span class="n num svelte-`);
-		expect(html).toContain(`>${zeros}</span>`);
+		expect(html).not.toContain(`<span class="n num svelte-`);
 	});
 	it('PrefectureChoropleth without a specialty maps how many specialties each prefecture has, in fixed classes', () => {
 		const html = render(PrefectureChoropleth, { props: { data, boundaries, selection: { ...sel, specialtyId: null }, onSelect: noop } }).body;
@@ -522,10 +526,7 @@ describe('server render (weekly layer)', () => {
 		expect(html).toContain(`από ${data.specialties.length} ειδικότητες`);
 		expect((html.match(/<path /g) ?? []).length).toBe(51);
 		for (const label of ['0 έως 5', '6 έως 10', '11 έως 20', '21 έως 30', '31 και πάνω']) expect(html).toContain(label);
-		// The fixture has six specialties, so every prefecture falls in the first two classes.
 		const covered = specialtiesCovered(data, [...SECTORS]);
-		const low = [...covered.values()].filter((n) => n <= 5).length;
-		expect(html).toContain(`>${low}</span>`);
 		// Each prefecture's label says «N από 6 ειδικότητες»; Ioannina is the selected one.
 		expect(html).toContain(`Ιωάννινα · `);
 		expect(html).toContain(`${covered.get(20)} από ${data.specialties.length} ειδικότητες`);
@@ -596,6 +597,11 @@ describe('waits (box plot)', () => {
 		expect(html).toContain('class="axis');
 		expect(html).toMatch(/\d+\/\d+ με ημερομηνία/); // the mean leaves out sites without a date: say so
 		expect(html).not.toContain('—');
+		// Each row names its sectors and opens on the map; the map button works with no specialty.
+		expect(html).toContain('class="smark esy');
+		expect(html).toContain('class="to-map');
+		expect(html).toContain('role="img"');
+		expect(html).not.toMatch(/class="map-action[^"]*"[^>]*disabled/);
 	});
 });
 

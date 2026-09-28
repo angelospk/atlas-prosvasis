@@ -1,7 +1,7 @@
 <script lang="ts">
 	// The week's findings, numbered. The text comes from the data (template-generated in
 	// coverage.py); this component only lays it out and turns each finding into a button
-	// that applies its selection.
+	// that applies its selection on the prefecture map, plus «Δες αναλυτικά» for its sites.
 	import type { AtlasReport, Selection } from '$lib/atlas/types';
 	import { fmtDateLong, fmtDayShort, plural } from './format';
 
@@ -10,7 +10,7 @@
 		onSelect
 	}: {
 		report: AtlasReport;
-		onSelect: (s: Partial<Selection>, evidenceKey: string | null) => void;
+		onSelect: (s: Partial<Selection>, evidenceKey: string | null, target: 'map' | 'points') => void;
 	} = $props();
 
 	const SHOW = 4;
@@ -54,10 +54,13 @@
 				<li>
 					<span class="n num" aria-hidden="true">{i + 1}</span>
 					{#if f.selection}
-						<button type="button" class="finding" onclick={() => onSelect(f.selection ?? {}, f.evidenceKey)}>
-							<span class="text">{f.text}</span>
-							<span class="go">Δες το στον χάρτη</span>
-						</button>
+						<div class="finding">
+							<span class="text" id={`finding-${f.id}`}>{f.text}</span>
+							<span class="actions">
+								<button type="button" class="go" aria-describedby={`finding-${f.id}`} onclick={() => onSelect(f.selection ?? {}, f.evidenceKey, 'map')}>Δες το στον χάρτη</button>
+								{#if f.evidenceKey}<button type="button" class="go" aria-describedby={`finding-${f.id}`} onclick={() => onSelect(f.selection ?? {}, f.evidenceKey, 'points')}>Δες αναλυτικά</button>{/if}
+							</span>
+						</div>
 					{:else}
 						<p class="finding static"><span class="text">{f.text}</span></p>
 					{/if}
@@ -115,17 +118,12 @@
 		display: grid;
 		gap: 0.3rem;
 		margin: 0;
-		padding: 0;
-		background: none;
-		border: 0;
-		text-align: left;
-		font: inherit;
 		color: var(--ink);
-		cursor: pointer;
-		border-radius: 4px;
 	}
-	.finding.static {
-		cursor: default;
+	.actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0 1.2rem;
 	}
 	.text {
 		font-size: clamp(1rem, 1.5vw, 1.12rem);
@@ -133,6 +131,11 @@
 		text-wrap: pretty;
 	}
 	.go {
+		min-height: 32px;
+		padding: 0;
+		background: none;
+		border: 0;
+		cursor: pointer;
 		font-size: 0.82rem;
 		font-weight: 500;
 		color: var(--accent-d);
@@ -141,7 +144,7 @@
 		text-underline-offset: 3px;
 		transition: text-decoration-color 0.15s ease;
 	}
-	.finding:hover .go {
+	.go:hover {
 		text-decoration-color: var(--accent);
 	}
 	.empty {

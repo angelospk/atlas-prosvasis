@@ -1,13 +1,15 @@
 <script lang="ts">
 	import type { AtlasData, Selection } from '$lib/atlas/types';
+	import { SECTORS, SECTOR_LABEL } from '$lib/atlas/types';
 	import { buildIndex, fmtDay, fmtStat, parseKey, plural, providerName, selectionLabel, titleCase, toCsv, waitRows } from './format';
 	import { dayAxis, WAIT_FILL, WAIT_LABEL, waitClass, waitPoints, waitSamples, type WaitPoint } from './waits';
 	import { downloadText } from './download';
 	// A ranked range plot: one line per row on a shared day axis. The bar runs from the first to
 	// the last date, each dot is one day (coloured with the map's wait classes), the dark tick is
-	// the mean. A dot shows its towns and units on hover, focus or tap.
-	let { data, selection, onShowOnMap = (_key: string) => {}, onPickSpecialty = (_id: number | null) => {}, specialtyPicker = true }: {
-		data: AtlasData; selection: Selection; onShowOnMap?: (key: string) => void; onPickSpecialty?: (id: number | null) => void; specialtyPicker?: boolean;
+	// the mean. A dot shows its towns and units on hover, focus or tap. A row's name opens it
+	// on the prefecture map.
+	let { data, selection, onShowOnMap = (_key: string | null) => {}, onPickSpecialty = (_id: number | null) => {}, specialtyPicker = true }: {
+		data: AtlasData; selection: Selection; onShowOnMap?: (key: string | null) => void; onPickSpecialty?: (id: number | null) => void; specialtyPicker?: boolean;
 	} = $props();
 	const uid = $props.id();
 	const idx = $derived(buildIndex(data));
@@ -39,6 +41,7 @@
 	function describe(point: WaitPoint) {
 		return `${plural(point.days, 'ημέρα', 'ημέρες')} · ${cities(point)} · ${plural(point.samples.length, 'σημείο', 'σημεία')}`;
 	}
+	const mixTitle = (counts: Record<string, number>) => SECTORS.map((s) => `${SECTOR_LABEL[s]}: ${counts[s] ?? 0}`).join(' · ');
 	const same = (a: { key: string; days: number } | null, key: string, days: number) => a?.key === key && a.days === days;
 	// Tooltips near either end of the axis open inward so they never leave the plot.
 	const side = (days: number) => days / axis.max < 0.2 ? 'start' : days / axis.max > 0.8 ? 'end' : 'mid';
@@ -74,7 +77,7 @@
 			<ol class="list">
 				{#each shown as row (row.key)}
 					<li class="row" data-key={row.key}>
-						<div class="name"><h3>{row.name}</h3><span>{row.stats.n}/{row.sites} με ημερομηνία</span></div>
+						<div class="name"><h3><button type="button" class="to-map" title="Δες στον χάρτη" aria-label={`${row.name}: δες στον χάρτη`} onclick={() => onShowOnMap(row.key)}>{row.name}</button></h3><span class="meta"><span class="mix" role="img" title={mixTitle(row.counts)} aria-label={mixTitle(row.counts)}>{#each SECTORS as sector (sector)}<span class="smark {sector}" class:off={!selection.sectors.includes(sector) || row.counts[sector] === 0}></span>{/each}</span>{row.stats.n}/{row.sites} με ημερομηνία</span></div>
 						<div class="plot" style:height={`${row.lanes * LANE + 16}px`} bind:clientWidth={plotWidth}>
 							<div class="grid" aria-hidden="true">{#each axis.ticks as t (t)}<i style:left={pct(t)}></i>{/each}</div>
 							<span class="range" aria-hidden="true" style:left={pct(row.stats.min)} style:width={`${(row.stats.max - row.stats.min) / axis.max * 100}%`}></span>
@@ -138,7 +141,7 @@
 				</select>
 			</label>
 		{/if}
-		<button class="map-action tool" disabled={!mapKey} onclick={() => { if (mapKey) onShowOnMap(mapKey); }}>Δες στον χάρτη ↗</button>
+		<button class="map-action tool" onclick={() => onShowOnMap(mapKey)}>Δες στον χάρτη ↗</button>
 	</div>
 	<p class="note">Πρώτο διαθέσιμο ραντεβού κάθε σημείου τη μέρα της σάρωσης, όχι πραγματικός χρόνος εξυπηρέτησης.</p>
 </section>
@@ -157,7 +160,8 @@
 	.list { list-style:none; padding:0; margin:0; }
 	.row { display:grid; grid-template-columns:var(--cols); gap:1.2rem; align-items:center; padding:.35rem 0; border-bottom:1px solid var(--paper-2); }
 	.row:last-child { border-bottom:0; }
-	.name { display:flex; flex-direction:column; min-width:0; } .name h3 { font:600 .9rem var(--sans); overflow-wrap:anywhere; } .name span { font-size:.7rem; color:var(--ink-3); }
+	.name { display:flex; flex-direction:column; min-width:0; } .name h3 { font:600 .9rem var(--sans); overflow-wrap:anywhere; } .meta { display:flex; align-items:center; gap:.4rem; font-size:.7rem; color:var(--ink-3); } .mix { display:inline-flex; gap:2px; }
+	.to-map { padding:0; min-height:0; background:none; border:0; font:inherit; color:inherit; text-align:left; cursor:pointer; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px; } .to-map:hover { text-decoration-color:var(--accent); }
 	.plot { position:relative; min-width:0; margin-inline:10px; }
 	.grid i { position:absolute; top:0; bottom:0; width:1px; background:var(--paper-2); }
 	.range { position:absolute; top:calc(16px + 10px); height:4px; min-width:4px; transform:translateX(-2px); border-radius:2px; background:#b9cbd6; }

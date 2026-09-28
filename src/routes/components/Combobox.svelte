@@ -226,6 +226,8 @@
 		overflow-y: auto;
 		overflow-x: hidden;
 		background: var(--card);
+		/* The nav bar sets white text; the open list is a white card. */
+		color: var(--ink);
 		border: 1px solid var(--line-2);
 		border-radius: 10px;
 		box-shadow: var(--shadow);

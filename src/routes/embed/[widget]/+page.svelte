@@ -65,10 +65,10 @@
 	}
 
 	// Opens the full atlas on the chosen row (not the embed's broader view), at the point map.
-	function showOnMap(key: string) {
-		const parsed = parseKey(key);
-		const url = writeAtlasUrl(new URL('/', PUBLIC_SITE), parsed ? { ...selection, ...parsed, mode: parsed.prefectureId == null ? 'specialty' : 'place' } : selection, metric);
-		url.hash = 'atlas-point-map';
+	function showOnMap(key: string | null) {
+		const parsed = key ? parseKey(key) : null;
+		const url = writeAtlasUrl(new URL('/', PUBLIC_SITE), parsed ? { ...selection, ...parsed, mode: parsed.prefectureId == null ? 'specialty' : 'place' } : selection, parsed ? 'mean' : 'coverage');
+		url.hash = 'atlas-map';
 		window.open(url.href, '_blank', 'noopener');
 	}
 

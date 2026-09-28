@@ -438,11 +438,10 @@
 			<span class="lg">
 				<span class="sw" style:background={FILL[c]} style:border-color={!waitMode && rateMode && c === 0 ? BRICK : 'var(--line-2)'}></span>
 				<span>{CLASS_TEXT[c]}</span>
-				<span class="n num">{classCounts.counts[c]}</span>
 			</span>
 		{/each}
 		{#if classCounts.unknown > 0}
-			<span class="lg"><span class="sw hatch"></span><span>χωρίς μέτρηση</span><span class="n num">{classCounts.unknown}</span></span>
+			<span class="lg"><span class="sw hatch"></span><span>χωρίς μέτρηση</span></span>
 		{/if}
 	</div>
 
@@ -633,9 +632,6 @@
 	}
 	.sw.hatch {
 		background: var(--hatch), var(--card);
-	}
-	.lg .n {
-		color: var(--ink-3);
 	}
 	.tools {
 		display: flex;

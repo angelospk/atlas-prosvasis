@@ -33,7 +33,6 @@
 	let matrixMetric = $state<Metric>('count');
 	let selectedKey = $state<string | null>(null);
 	let mapMetric = $state<MapMetric>('coverage');
-	let copyStatus = $state('');
 	let syncingUrl = false;
 	let scrollLockUntil = 0;
 	let coverageExpanded = $state(false);
@@ -75,6 +74,8 @@
 		focusKey?: string | null;
 		mapKey?: string | null;
 		openPointMap?: boolean;
+		/** Switch the prefecture map to this metric and scroll to it. */
+		mapMetric?: MapMetric;
 	};
 
 	function requestSelection(next: Selection, request: SelectionRequest = {}) {
@@ -89,7 +90,8 @@
 			if (!alive || token !== requestToken) return;
 			selection = candidate;
 			pendingSelection = null;
-			syncUrl(true);
+			if (request.mapMetric) mapMetric = request.mapMetric;
+			const pushed = syncUrl(true);
 			coverageExpanded = false;
 			if (request.openPointMap) pointMapOpen = true;
 			const requestedKey = request.focusKey ?? null;
@@ -101,6 +103,7 @@
 			await tick();
 			if (!alive || token !== requestToken) return;
 			if (request.openPointMap) focusPointMap();
+			else if (request.mapMetric) navigate('map', !pushed);
 			else if (requestedKey) showRow(requestedKey);
 		})();
 	}
@@ -121,8 +124,10 @@
 		pointHeading.focus({ preventScroll: true });
 	}
 
-	function applyFinding(partial: Partial<Selection>, evidenceKey: string | null) {
-		requestSelection({ ...selection, ...partial, sectors: partial.sectors?.length ? [...partial.sectors] : [...selection.sectors] }, { focusKey: evidenceKey });
+	// «Δες το στον χάρτη» goes to the prefecture map; «Δες αναλυτικά» to the finding's sites on the point map.
+	function applyFinding(partial: Partial<Selection>, evidenceKey: string | null, target: 'map' | 'points') {
+		const next = { ...selection, ...partial, sectors: partial.sectors?.length ? [...partial.sectors] : [...selection.sectors] };
+		requestSelection(next, target === 'points' ? { focusKey: evidenceKey, mapKey: evidenceKey, openPointMap: true } : { focusKey: null, mapKey: evidenceKey, mapMetric: 'coverage' });
 	}
 	function pickPrefecture(prefectureId: number) { requestSelection({ ...selection, prefectureId }); }
 	function pickSpecialty(specialtyId: number | null) { requestSelection({ ...selection, specialtyId }); }
@@ -133,26 +138,32 @@
 		if (!parsed) return;
 		requestSelection({ ...selection, prefectureId: parsed.prefectureId, specialtyId: parsed.specialtyId }, { focusKey: parsed.prefectureId == null ? null : key, mapKey: key });
 	}
-	function showWaitOnMap(key: string) {
-		const parsed = parseKey(key);
-		if (!parsed) return;
-		requestSelection({ ...selection, prefectureId: parsed.prefectureId, specialtyId: parsed.specialtyId }, { focusKey: parsed.prefectureId == null ? null : key, mapKey: key, openPointMap: true });
+	// From the waits: the prefecture map, coloured by mean wait. Waits are per specialty, so
+	// without one (no key) the map shows coverage instead.
+	function showWaitOnMap(key: string | null) {
+		const parsed = key ? parseKey(key) : null;
+		const next = parsed ? { ...selection, prefectureId: parsed.prefectureId, specialtyId: parsed.specialtyId } : selection;
+		requestSelection(next, { focusKey: null, mapKey: key, mapMetric: parsed ? 'mean' : 'coverage' });
 	}
 	function reset() { requestSelection({ ...DEFAULT, sectors: [...SECTORS] }, { focusKey: null, mapKey: null }); }
 	function toggleCoverage(key: string | null) { selectedKey = key != null && selectedKey !== key ? key : null; }
 	function changeSort(next: Metric) { sort = next; coverageExpanded = false; selectedKey = null; }
-	function syncUrl(push = false, hash?: string) {
-  if (!mounted || syncingUrl) return;
+	/** Returns whether a new history entry was pushed. */
+	function syncUrl(push = false, hash?: string): boolean {
+  if (!mounted || syncingUrl) return false;
   const url = writeAtlasUrl(new URL(window.location.href), selection, mapMetric);
   if (hash) url.hash = hash;
-  if (url.href !== window.location.href) (push ? pushState : replaceState)(url, {});
+  if (url.href === window.location.href) return false;
+  (push ? pushState : replaceState)(url, {});
+  return push;
  }
  function setMetric(metric: MapMetric) { mapMetric = metric; syncUrl(true); }
- function navigate(section: Section) {
+ // push = false when the selection change already made its own history entry.
+ function navigate(section: Section, push = true) {
   if (section === 'details') toolsOpen = true;
   activeSection = section;
   scrollLockUntil = Date.now() + 1200;
-  syncUrl(true, SECTION_IDS[section]);
+  syncUrl(push, SECTION_IDS[section]);
   void tick().then(() => document.getElementById(SECTION_IDS[section])?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
  }
  async function restoreUrl() {
@@ -173,10 +184,6 @@
   if (!alive) return;
   if (hash) document.getElementById(hash)?.scrollIntoView({ behavior: 'instant' });
   syncingUrl = false;
- }
- async function copyView() {
-  try { await navigator.clipboard.writeText(window.location.href); copyStatus = 'Ο σύνδεσμος αντιγράφηκε'; }
-  catch { copyStatus = 'Αντέγραψε τη διεύθυνση από τη μπάρα του browser.'; }
  }
 	function togglePointMap() {
 		pointMapOpen = !pointMapOpen;
@@ -248,8 +255,8 @@
 </script>
 
 <svelte:head>
-	<title>Άτλας πρόσβασης · Η φροντίδα στον χάρτη</title>
-	<meta name="description" content="Χάρτης κάλυψης και διαθέσιμων ραντεβού ανά νομό και ειδικότητα. Εξερεύνησε αναμονές, μοιράσου φίλτρα και ενσωμάτωσε γραφήματα." />
+	<title>Άτλας πρόσβασης · Δημόσια ιατρική φροντίδα, νομό προς νομό</title>
+	<meta name="description" content="Ανοιχτά δεδομένα από το e-ραντεβού: ποιες ειδικότητες καλύπτει η δημόσια ασφάλιση σε κάθε νομό, πόσο απέχουν και πόσο περιμένεις για ραντεβού." />
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 	<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:wght@600;700&display=swap" />
@@ -262,7 +269,7 @@
   <a class="skip-link" href="#atlas-map">Μετάβαση στον χάρτη</a>
   <AtlasNav {data} selection={pendingSelection ?? selection} onChange={requestSelection} onReset={reset} {updating} {activeSection} onNavigate={navigate} onHeightChange={publishBarHeight} />
   <main class="page">
-  <header class="top"><div><h1>Η φροντίδα,<br />στον χάρτη.</h1><p class="lede">Πού βρίσκεις την ειδικότητα που χρειάζεσαι. Πόσο απέχει. Και πόσες ημέρες μέχρι το πρώτο ραντεβού.</p></div><div class="edition"><strong>{data.prefectures.length} νομοί<span> / </span>{data.specialties.length} ειδικότητες</strong><span>Σάρωση {new Date(data.scan.at).toLocaleDateString('el-GR', { timeZone: 'UTC' })}</span><button onclick={copyView}>Μοιράσου αυτή την προβολή ↗</button><span role="status">{copyStatus}</span></div></header>
+  <header class="top"><div><h1>Δημόσια ιατρική φροντίδα,<br />νομό προς νομό.</h1><p class="lede">Ανοιχτά δεδομένα από το e-ραντεβού του Υπουργείου Υγείας: πού βρίσκεις την ειδικότητα που σου καλύπτει η δημόσια ασφάλιση, πόσο απέχει και πόσες ημέρες μέχρι το πρώτο ραντεβού.</p></div><div class="edition"><strong>{data.prefectures.length} νομοί<span> / </span>{data.specialties.length} ειδικότητες</strong><span>Σάρωση {new Date(data.scan.at).toLocaleDateString('el-GR', { timeZone: 'UTC' })}</span></div></header>
 
 		<div class="results" aria-busy={updating}>
 			<div class="briefing"><WeeklyBriefing report={data} onSelect={applyFinding} /><ShareWidget widget="briefing" {selection} /></div>
@@ -306,7 +313,7 @@
 <style>
 	.page { min-height: 100dvh; padding: clamp(1.25rem, 4vw, 2.5rem) clamp(1rem, 4vw, 2rem) 4rem; display: grid; gap: 1.6rem; max-width: 1360px; margin: 0 auto; min-width: 0; }
 	.top { display:grid; grid-template-columns:1.5fr 1fr; gap:2rem; align-items:end; min-width:0; padding:1.8rem 0 1.5rem; border-bottom:1px solid var(--line-2); }
- .edition { display:grid; gap:.7rem; justify-self:end; font-size:.8rem; color:var(--ink-3); } .edition strong { font-size:1.1rem; color:var(--ink); font-weight:500; } .edition strong span { color:var(--line-2); padding:0 .3rem; } .edition button { text-align:left; padding:0; min-height:44px; background:none; border:0; color:var(--accent); font-size:.8rem; }
+ .edition { display:grid; gap:.7rem; justify-self:end; font-size:.8rem; color:var(--ink-3); } .edition strong { font-size:1.1rem; color:var(--ink); font-weight:500; } .edition strong span { color:var(--line-2); padding:0 .3rem; }
 	h1 { font-size: clamp(2.8rem, 6vw, 4.8rem); line-height: 1.05; margin-bottom: 0.6rem; }
 	.lede { margin: 0; color: var(--ink-2); max-width: 56ch; text-wrap: pretty; }
 	.results { display: grid; gap: 3rem; min-width: 0; transition: opacity 120ms ease; }
