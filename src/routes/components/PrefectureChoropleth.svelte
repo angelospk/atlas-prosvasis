@@ -192,7 +192,7 @@
 	let active = $state<number | null>(null); // hovered or focused
 	let pointer = $state<{ x: number; y: number } | null>(null); // relative to the frame
 	let frame = $state<HTMLElement | null>(null);
-	let svgEl = $state<SVGSVGElement | null>(null);
+	let svgEl: SVGSVGElement | null = null;
 
 	function move(e: PointerEvent) {
 		if (!frame) return;
@@ -370,7 +370,7 @@
 
 <figure class="choro">
  <div class="metric-switch" role="group" aria-label="Μέτρηση χάρτη">
-  {#each [{id:'coverage', label:'Κάλυψη'}, {id:'first', label:'Πρώτο ραντεβού'}, {id:'mean', label:'Μέση αναμονή'}] as item}
+  {#each [{id:'coverage', label:'Κάλυψη'}, {id:'first', label:'Πρώτο ραντεβού'}, {id:'mean', label:'Μέση αναμονή'}] as item (item.id)}
    <button type="button" aria-pressed={metric === item.id} onclick={() => onMetric(item.id as MapMetric)}>{item.label}</button>
   {/each}
  </div>

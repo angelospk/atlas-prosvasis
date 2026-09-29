@@ -43,7 +43,7 @@
 	let open = $state(false);
 	let query = $state('');
 	let cursor = $state(0);
-	let root = $state<HTMLElement | null>(null);
+	let root: HTMLElement | null = null;
 
 	const filtered = $derived.by(() => {
 		const q = fold(query.trim());
