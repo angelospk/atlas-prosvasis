@@ -593,14 +593,28 @@ describe('waits (box plot)', () => {
 		expect(one.length).toBeLessThanOrEqual(1);
 		// by default the longest mean wait first: the figure each row shows
 		for (let i = 1; i < none.length; i++) expect(none[i - 1].stats.mean).toBeGreaterThanOrEqual(none[i].stats.mean);
-		// or the soonest first appointment first
-		const first = waitRows(data, idx, all, 'first');
+		// each measure in either direction: four orders
+		const meanAsc = waitRows(data, idx, all, 'mean', 'asc');
+		for (let i = 1; i < meanAsc.length; i++) expect(meanAsc[i - 1].stats.mean).toBeLessThanOrEqual(meanAsc[i].stats.mean);
+		const first = waitRows(data, idx, all, 'first', 'asc');
 		for (let i = 1; i < first.length; i++) expect(first[i - 1].stats.min).toBeLessThanOrEqual(first[i].stats.min);
+		const firstDesc = waitRows(data, idx, all, 'first', 'desc');
+		for (let i = 1; i < firstDesc.length; i++) expect(firstDesc[i - 1].stats.min).toBeGreaterThanOrEqual(firstDesc[i].stats.min);
+		// ties on the measure fall back to the other one, in the same direction
+		for (let i = 1; i < first.length; i++) if (first[i - 1].stats.min === first[i].stats.min) expect(first[i - 1].stats.mean).toBeLessThanOrEqual(first[i].stats.mean);
+		for (let i = 1; i < none.length; i++) if (none[i - 1].stats.mean === none[i].stats.mean) expect(none[i - 1].stats.min).toBeGreaterThanOrEqual(none[i].stats.min);
 	});
-	it('WaitDistribution offers both orders', () => {
+	it('WaitDistribution shows first and mean per row, sorts by either, in either direction', () => {
 		const html = render(WaitDistribution, { props: { data, selection: all, onShowOnMap: () => {} } }).body;
-		expect(html).toContain('Μεγαλύτερη μέση αναμονή');
-		expect(html).toContain('Νωρίτερο πρώτο ραντεβού');
+		expect(html).toContain('>Μέση αναμονή</option>');
+		expect(html).toContain('>Πρώτο ραντεβού</option>');
+		expect(html).toContain('aria-label="Φθίνουσα σειρά"');
+		expect(html).toMatch(/class="first-head[ "]/);
+		expect(html).toMatch(/class="mean-head[ "]/);
+		const rows = waitRows(data, idx, all);
+		expect(html).toMatch(new RegExp(`<div class="first[^"]*"><span class="sr[^"]*">Πρώτο ραντεβού:</span> <strong[^>]*>${rows[0].stats.min}</strong>`));
+		expect(html).toContain('>Μέση αναμονή:</span>');
+		expect(html).toMatch(/Ταξινόμηση<\/label>/); // the label wraps only its word, not the direction toggle
 	});
 	it('renders wait rows with a distribution and says how many sites had a date', () => {
 		const html = render(WaitDistribution, { props: { data, selection: all, onShowOnMap: () => {} } }).body;

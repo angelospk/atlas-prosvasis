@@ -17,7 +17,6 @@
 	import CoverageList from './components/CoverageList.svelte';
 	import AccessMap from './components/AccessMap.svelte';
 	import CoverageMatrix from './components/CoverageMatrix.svelte';
-	import WeeklyBriefing from './components/WeeklyBriefing.svelte';
 	import PrefectureChoropleth from './components/PrefectureChoropleth.svelte';
 	import SpecialtyCoverageBars from './components/SpecialtyCoverageBars.svelte';
 	import CoverageRanking from './components/CoverageRanking.svelte';
@@ -147,11 +146,6 @@
 		if (i.detail === 'points' && i.evidenceKey) requestSelection(next, { focusKey: i.evidenceKey, mapKey: i.evidenceKey, openPointMap: true });
 		else if (i.detail === 'sites') requestSelection(next, { focusKey: null, mapKey: null, mapMetric: 'coverage', openSummary: 'sites' });
 		else requestSelection(next, { focusKey: null, mapKey: null, section: 'list' });
-	}
-	// «Δες το στον χάρτη» goes to the prefecture map; «Δες αναλυτικά» to the finding's sites on the point map.
-	function applyFinding(partial: Partial<Selection>, evidenceKey: string | null, target: 'map' | 'points') {
-		const next = { ...selection, ...partial, sectors: partial.sectors?.length ? [...partial.sectors] : [...selection.sectors] };
-		requestSelection(next, target === 'points' ? { focusKey: evidenceKey, mapKey: evidenceKey, openPointMap: true } : { focusKey: null, mapKey: evidenceKey, mapMetric: 'coverage' });
 	}
 	function pickPrefecture(prefectureId: number) { requestSelection({ ...selection, prefectureId }); }
 	function pickSpecialty(specialtyId: number | null) { requestSelection({ ...selection, specialtyId }); }
@@ -337,8 +331,6 @@
 				<section class="pair"><div><SpecialtyCoverageBars data={data} sectors={selection.sectors} selectedSpecialtyId={selection.specialtyId} onSelect={pickSpecialty} /><ShareWidget widget="specialties" {selection} /></div><div><CoverageRanking data={data} selection={selection} onSelect={pickPrefecture} /><ShareWidget widget="ranking" {selection} /></div></section>
 				<ScanChangeChart report={data} /><ShareWidget widget="changes" {selection} />
 			</details>
-
-			<div class="briefing"><WeeklyBriefing report={data} onSelect={applyFinding} /><ShareWidget widget="briefing" {selection} /></div>
 
 			<MethodologyBlock report={data} /><AtlasFooter />
 		</div>

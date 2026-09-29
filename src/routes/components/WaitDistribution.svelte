@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { AtlasData, Selection } from '$lib/atlas/types';
 	import { SECTORS, SECTOR_LABEL } from '$lib/atlas/types';
-	import { buildIndex, fmtDay, fmtStat, parseKey, plural, providerName, selectionLabel, titleCase, toCsv, waitRows, type WaitOrder } from './format';
+	import { buildIndex, fmtDay, fmtStat, parseKey, plural, providerName, selectionLabel, titleCase, toCsv, waitRows, type SortDir, type WaitOrder } from './format';
 	import { dayAxis, WAIT_FILL, WAIT_LABEL, waitClass, waitPoints, waitSamples, type WaitPoint } from './waits';
 	import { downloadText } from './download';
 	// A ranked range plot: one line per row on a shared day axis. The bar runs from the first to
@@ -14,7 +14,8 @@
 	const uid = $props.id();
 	const idx = $derived(buildIndex(data));
 	let order = $state<WaitOrder>('mean');
-	const rows = $derived(waitRows(data, idx, selection, order));
+	let dir = $state<SortDir>('desc');
+	const rows = $derived(waitRows(data, idx, selection, order, dir));
 	let showingAll = $state(false);
 	let hovered = $state<{ key: string; days: number } | null>(null);
 	let pinned = $state<{ key: string; days: number } | null>(null);
@@ -61,12 +62,12 @@
 	<header class="head">
 		<div><h2 id={`${uid}-title`}>Αναμονή για ραντεβού</h2><p class="sub">{selectionLabel(idx, selection)} · ημέρες από τη σάρωση της {fmtDay(data.scan.at)}</p></div>
 		<div class="tools">
-			{#if rows.length > 1}<label class="order">Ταξινόμηση
-				<select bind:value={order}>
-					<option value="mean">Μεγαλύτερη μέση αναμονή</option>
-					<option value="first">Νωρίτερο πρώτο ραντεβού</option>
-				</select>
-			</label>{/if}
+			{#if rows.length > 1}<div class="order"><label for={`${uid}-order`}>Ταξινόμηση</label>
+				<span class="sort"><select id={`${uid}-order`} bind:value={order}>
+					<option value="mean">Μέση αναμονή</option>
+					<option value="first">Πρώτο ραντεβού</option>
+				</select><button type="button" class="tool dir" aria-label={dir === 'asc' ? 'Αύξουσα σειρά' : 'Φθίνουσα σειρά'} title={dir === 'asc' ? 'Αύξουσα σειρά' : 'Φθίνουσα σειρά'} onclick={() => (dir = dir === 'asc' ? 'desc' : 'asc')}><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" class:asc={dir === 'asc'}><path d="M8 2v11M3.5 8.5 8 13l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span>
+			</div>{/if}
 			<button class="tool" onclick={exportCsv}>CSV</button>
 		</div>
 	</header>
@@ -81,7 +82,7 @@
 			<div class="axis" aria-hidden="true">
 				<span></span>
 				<div class="scale">{#each axis.ticks as t (t)}<span style:left={pct(t)}>{t}</span>{/each}</div>
-				<span class="mean-head">μέσος</span>
+				<span class="first-head">πρώτο</span><span class="mean-head">μέσος</span>
 			</div>
 			<ol class="list">
 				{#each shown as row (row.key)}
@@ -116,7 +117,8 @@
 								{/if}
 							{/each}
 						</div>
-						<div class="avg"><strong>{fmtStat(row.stats.mean)}</strong><small>ημ.</small></div>
+						<div class="first"><span class="sr">Πρώτο ραντεβού:</span> <strong>{row.stats.min}</strong><small>ημ.</small></div>
+						<div class="avg"><span class="sr">Μέση αναμονή:</span> <strong>{fmtStat(row.stats.mean)}</strong><small>ημ.</small></div>
 					</li>
 				{/each}
 			</ol>
@@ -160,15 +162,17 @@
 	.head { display:flex; justify-content:space-between; align-items:end; gap:1rem; flex-wrap:wrap; }
 	.tools { display:flex; align-items:end; gap:.6rem; flex-wrap:wrap; }
 	.order { display:grid; gap:.2rem; font-size:.78rem; color:var(--ink-3); }
+	.sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+	.sort { display:flex; gap:.3rem; } .dir { display:grid; place-items:center; width:44px; padding:0; color:var(--ink); } .dir svg { transition:transform .15s; } .dir svg.asc { transform:rotate(180deg); }
 	.order select { min-height:44px; max-width:100%; border:1px solid var(--line-2); border-radius:var(--r-ctl); background:var(--card); color:var(--ink); padding:0 .45rem; font:inherit; font-size:16px; }
 	h2 { font-size:clamp(1.4rem,2.6vw,1.9rem); } .sub,.note { margin:.3rem 0 0; font-size:.82rem; color:var(--ink-3); } .note { margin:0; }
 	.legend { display:flex; gap:.4rem 1rem; flex-wrap:wrap; font-size:.75rem; color:var(--ink-2); }
 	.legend span { display:flex; gap:.4rem; align-items:center; } .legend i { width:10px; height:10px; border-radius:50%; box-shadow:0 0 0 1px #152c3b40; }
 	.legend i.tick { width:2px; height:12px; border-radius:0; background:var(--ink); box-shadow:none; }
-	.chart { --cols:minmax(9rem,14rem) minmax(0,1fr) 4.5rem; background:var(--card); border:1px solid var(--line); border-radius:var(--r-box); padding:0 1.2rem; }
+	.chart { --cols:minmax(9rem,14rem) minmax(0,1fr) 3.5rem 4.5rem; background:var(--card); border:1px solid var(--line); border-radius:var(--r-box); padding:0 1.2rem; }
 	.axis { position:sticky; top:var(--atlas-bar-height, 0px); z-index:3; display:grid; grid-template-columns:var(--cols); gap:1.2rem; align-items:end; height:34px; padding-bottom:6px; background:var(--card); border-bottom:1px solid var(--line); font-size:.7rem; color:var(--ink-3); }
 	.scale { position:relative; height:100%; margin-inline:10px; } .scale span { position:absolute; bottom:0; transform:translateX(-50%); font-variant-numeric:tabular-nums; }
-	.mean-head { text-align:right; }
+	.first-head,.mean-head { text-align:right; }
 	.list { list-style:none; padding:0; margin:0; }
 	.row { display:grid; grid-template-columns:var(--cols); gap:1.2rem; align-items:center; padding:.35rem 0; border-bottom:1px solid var(--paper-2); }
 	.row:last-child { border-bottom:0; }
@@ -188,7 +192,7 @@
 	.tip { position:absolute; z-index:5; margin-top:26px; width:max-content; max-width:min(18rem, 70vw); padding:.55rem .7rem; background:var(--ink); color:#fff; border-radius:8px; font-size:.78rem; box-shadow:var(--shadow); pointer-events:none; }
 	.tip.mid { transform:translateX(-50%); } .tip.start { transform:translateX(-14px); } .tip.end { transform:translateX(calc(-100% + 14px)); }
 	.tip strong { font-size:.9rem; } .tip ul { list-style:none; margin:.3rem 0 0; padding:0; display:grid; gap:.2rem; } .tip b { font-weight:600; } .tip small { color:#c9d9e3; }
-	.avg { text-align:right; white-space:nowrap; } .avg strong { font-size:1.15rem; font-weight:600; font-variant-numeric:tabular-nums; } .avg small { margin-left:.2rem; font-size:.72rem; color:var(--ink-3); }
+	.avg,.first { text-align:right; white-space:nowrap; } .avg strong,.first strong { font-size:1.15rem; font-weight:600; font-variant-numeric:tabular-nums; } .first strong { color:var(--ink-2); font-weight:500; } .avg small,.first small { margin-left:.2rem; font-size:.72rem; color:var(--ink-3); }
 	.actions { display:flex; gap:1rem; align-items:end; flex-wrap:wrap; } .actions label { display:grid; gap:.35rem; font-size:.78rem; min-width:0; flex:1; max-width:400px; }
 	select { width:100%; min-width:0; height:44px; border:1px solid var(--line-2); border-radius:var(--r-ctl); padding:0 .6rem; color:var(--ink); background:var(--card); font:inherit; font-size:16px; }
 	.tool { min-height:44px; padding:.5rem .9rem; background:var(--card); border:1px solid var(--line-2); border-radius:var(--r-ctl); font-size:.78rem; font-weight:500; } .tool:disabled { opacity:.5; cursor:default; } .more { justify-self:start; } .map-action { background:var(--accent); color:white; border-color:var(--accent); }
@@ -200,11 +204,12 @@
 	tbody>tr:first-child>* { border-top:1px solid var(--line); } tbody th { font-weight:600; } tbody th small { display:block; font-weight:400; color:var(--ink-3); }
 	td.num { font-variant-numeric:tabular-nums; }
 	@media(max-width:699px) {
-		.chart { --cols:minmax(0,1fr) auto; padding:0 .8rem; }
+		.chart { --cols:minmax(0,1fr) auto auto; padding:0 .8rem; }
 		.axis { grid-template-columns:minmax(0,1fr); } .axis > span { display:none; }
-		.row { grid-template-columns:minmax(0,1fr) auto; gap:.1rem .6rem; padding:.5rem 0; }
-		.name { flex-direction:row; align-items:baseline; gap:.5rem; } .plot { grid-column:1/-1; grid-row:2; }
-		.avg { grid-column:2; grid-row:1; }
+		.row { grid-template-columns:minmax(0,1fr) auto auto; gap:.1rem .6rem; padding:.5rem 0; }
+		.name { grid-column:1/-1; flex-direction:row; align-items:baseline; flex-wrap:wrap; gap:0 .5rem; } .plot { grid-column:1/-1; grid-row:3; }
+		.first { grid-column:2; grid-row:2; } .avg { grid-column:3; grid-row:2; }
+		.first .sr,.avg .sr { position:static; width:auto; height:auto; overflow:visible; clip-path:none; font-size:.68rem; color:var(--ink-3); }
 	}
 	@media(max-width:420px) { table { table-layout:fixed; } th,td { padding:.4rem .4rem; overflow-wrap:break-word; } thead th:nth-child(1) { width:34%; } thead th:nth-child(2),thead th:nth-child(4) { width:17%; } .actions label { flex-basis:100%; max-width:none; } }
 </style>

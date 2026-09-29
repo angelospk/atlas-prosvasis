@@ -752,11 +752,13 @@ export interface WaitRow {
 /**
  * One row per specialty (Greece or a chosen prefecture) or per prefecture (a chosen
  * specialty), or the single chosen cell; every site in the chosen sectors with a first
- * free date is one value. Longest typical (median) wait first.
+ * free date is one value, sorted by `order` in `dir`.
  */
-/** mean: longest mean wait first (the figure each row shows). first: soonest first appointment first. */
+/** The measure the wait rows sort by: the mean wait or the first appointment (fewest days). */
 export type WaitOrder = 'mean' | 'first';
-export function waitRows(data: AtlasData, idx: AtlasIndex, selection: Selection, order: WaitOrder = 'mean'): WaitRow[] {
+/** desc: most days first (the default), asc: fewest days first. */
+export type SortDir = 'asc' | 'desc';
+export function waitRows(data: AtlasData, idx: AtlasIndex, selection: Selection, order: WaitOrder = 'mean', dir: SortDir = 'desc'): WaitRow[] {
 	const { prefectureId, specialtyId, sectors } = selection;
 	const pairs: { prefectureId: number | null; specialtyId: number; name: string }[] =
 		specialtyId != null && prefectureId == null
@@ -775,8 +777,9 @@ export function waitRows(data: AtlasData, idx: AtlasIndex, selection: Selection,
 		const counts = Object.fromEntries(SECTORS.map((s) => [s, sites.filter((x) => x.sector === s).length])) as Record<Sector, number>;
 		if (stats) rows.push({ key: cellKey(p.prefectureId, p.specialtyId), name: p.name, sites: sites.length, counts, values, stats });
 	}
-	const cmp = order === 'first' ? (a: WaitRow, b: WaitRow) => a.stats.min - b.stats.min || a.stats.mean - b.stats.mean : (a: WaitRow, b: WaitRow) => b.stats.mean - a.stats.mean;
-	return rows.sort((a, b) => cmp(a, b) || a.name.localeCompare(b.name, 'el'));
+	const sign = dir === 'asc' ? 1 : -1;
+	const cmp = order === 'first' ? (a: WaitRow, b: WaitRow) => a.stats.min - b.stats.min || a.stats.mean - b.stats.mean : (a: WaitRow, b: WaitRow) => a.stats.mean - b.stats.mean || a.stats.min - b.stats.min;
+	return rows.sort((a, b) => sign * cmp(a, b) || a.name.localeCompare(b.name, 'el'));
 }
 
 // ---- readable text on a mixed tone (the matrix cells) ----
