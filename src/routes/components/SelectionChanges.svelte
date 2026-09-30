@@ -32,7 +32,7 @@
 
 {#if changes}
 	<section class="sel-changes" aria-labelledby={`${uid}-title`}>
-		<h3 id={`${uid}-title`}>Τι άλλαξε από τη σάρωση της {fmtDayShort(changes.from)}</h3>
+		<h3 id={`${uid}-title`}>Τι άλλαξε από τη σάρωση της {fmtDayShort(changes.from)} στη σάρωση της {fmtDayShort(changes.to)}</h3>
 		{#if changes.added.length === 0 && changes.removed.length === 0}
 			<p class="none">{changes.partial ? 'Καμία καταγεγραμμένη αλλαγή σε δημόσια μονάδα.' : 'Καμία αλλαγή στον κατάλογο.'}</p>
 		{:else}

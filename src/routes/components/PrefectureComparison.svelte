@@ -17,7 +17,7 @@
 
 	type Line = { label: string; value: (r: Row | null) => string; score: (r: Row | null) => number | null; sub?: (r: Row | null) => string };
 	const LINES: Line[] = [
-		{ label: 'Σημεία παροχής', value: (r) => fmtInt(r?.count ?? 0), score: (r) => r?.count ?? 0 },
+		{ label: 'Σημεία παροχής', value: (r) => (r ? fmtInt(r.count) : EMPTY), score: (r) => r?.count ?? null },
 		{ label: 'Ανά 100 χιλ. κατοίκους', value: (r) => (r && r.count > 0 ? fmtPer100k(r.per100k) : EMPTY), score: (r) => (r && r.count > 0 ? r.per100k : null) },
 		{
 			label: 'Πρώτο ραντεβού',
