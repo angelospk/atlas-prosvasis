@@ -25,6 +25,7 @@ import {
 	isDefaultSelection,
 	nearestFor,
 	nearbySites,
+	selectionChanges,
 	parseKey,
 	projectLonLat,
 	projectRings,
@@ -42,6 +43,7 @@ import SelectionBar from './SelectionBar.svelte';
 import AtlasNav from './AtlasNav.svelte';
 import SnapshotNotice from './SnapshotNotice.svelte';
 import MetricSummary from './MetricSummary.svelte';
+import SelectionChanges from './SelectionChanges.svelte';
 import CoverageList from './CoverageList.svelte';
 import AccessMap from './AccessMap.svelte';
 import CoverageMatrix from './CoverageMatrix.svelte';
@@ -835,6 +837,38 @@ describe('round 3: no redundant controls', () => {
 		const specialtySelects = [...html.matchAll(/<select[^>]*>\s*(?:<!--[^>]*-->\s*)*<option value=""[^>]*>Όλες οι ειδικότητες/g)].length;
 		expect(specialtySelects).toBe(1);
 		expect(html).not.toContain('Διάλεξε νομό');
+	});
+});
+
+describe('selectionChanges', () => {
+	const item = (id: string, sector: 'esy' | 'pfy' | 'private', prefectureId: number | null, specialtyId: number) => ({ providerId: id, name: `UNIT ${id}`, sector, prefectureId, specialtyId });
+	const base: AtlasReport = { ...report, history: [
+		{ from: '2026-09-19', to: '2026-09-20', comparable: true, added: 1, removed: 0, addedItems: [item('old', 'esy', 5, 14)], removedItems: [] },
+		{ from: '2026-09-26', to: '2026-09-27', comparable: true, added: 4, removed: 2,
+			addedItems: [item('a', 'esy', 5, 14), item('b', 'pfy', 5, 20), item('c', 'esy', 6, 14), item('d', 'private', 5, 14)],
+			removedItems: [item('e', 'pfy', 5, 14), item('f', 'pfy', null, 14)] }
+	] };
+	const sel = (prefectureId: number | null, specialtyId: number | null, sectors = [...SECTORS]): Selection => ({ mode: 'place', prefectureId, specialtyId, sectors });
+	it('filters the latest comparable interval by prefecture, specialty and sectors', () => {
+		const c = selectionChanges(base, sel(5, 14))!;
+		expect(c.from).toBe('2026-09-26');
+		expect(c.added.map((x) => x.providerId)).toEqual(['a', 'd']);
+		expect(c.removed.map((x) => x.providerId)).toEqual(['e']);
+		expect(selectionChanges(base, sel(null, 14))!.removed.map((x) => x.providerId)).toEqual(['e', 'f']);
+		expect(selectionChanges(base, sel(5, null, ['esy']))!.added.map((x) => x.providerId)).toEqual(['a']);
+	});
+	it('says when the lists are partial, and stays out of the national view and incomparable scans', () => {
+		expect(selectionChanges(base, sel(5, 14))!.partial).toBe(false);
+		expect(selectionChanges({ ...base, history: [{ ...base.history[1], added: 250 }] }, sel(5, 14))!.partial).toBe(true);
+		expect(selectionChanges(base, sel(null, null))).toBeNull();
+		expect(selectionChanges({ ...base, history: [{ ...base.history[1], comparable: false }] }, sel(5, 14))).toBeNull();
+		expect(selectionChanges({ ...base, history: [] }, sel(5, 14))).toBeNull();
+	});
+	it('SelectionChanges never names a private or ΕΟΠΥΥ doctor', () => {
+		const html = render(SelectionChanges, { props: { report: base, selection: sel(5, 14) } }).body;
+		expect(html).toContain(`>${providerName({ sector: 'esy', name: 'UNIT a' })}<`);
+		expect(html).not.toMatch(/UNIT d/i);
+		expect(html).toContain('Ιδιώτης ιατρός');
 	});
 });
 

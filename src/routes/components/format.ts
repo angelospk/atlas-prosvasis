@@ -3,6 +3,8 @@
 
 import type {
 	AtlasData,
+	AtlasReport,
+	ChangeItem,
 	CoverageCell,
 	Metric,
 	PinIssue,
@@ -308,11 +310,29 @@ export function nearbySites(idx: AtlasIndex, prefectureId: number, specialtyId: 
 /** Soonest first-free date among the prefecture's public providers of the specialty in `sectors`. */
 /** Display name. The public data names public units only; a private or ΕΟΠΥΥ doctor
  *  arrives without a name and is shown by what they are. */
-export function providerName(p: Provider): string {
+export function providerName(p: Pick<Provider, 'sector' | 'name'>): string {
 	// Privacy: private and ΕΟΠΥΥ doctors are never named, whatever the data carries.
 	if (p.sector === 'eopyy') return 'Ιατρός συμβεβλημένος με τον ΕΟΠΥΥ';
 	if (p.sector === 'private') return 'Ιδιώτης ιατρός';
 	return p.name ? titleCase(p.name) : 'Δημόσια μονάδα';
+}
+
+/** What changed for the current prefecture / specialty / sectors in the latest comparable
+ *  interval; null for the national view (the change chart covers it) or without one.
+ *  `partial`: the scan lists fewer items than it counts (it itemises public units only). */
+export function selectionChanges(report: AtlasReport, selection: Selection): { from: string; to: string; added: ChangeItem[]; removed: ChangeItem[]; partial: boolean } | null {
+	const { prefectureId, specialtyId, sectors } = selection;
+	if (prefectureId == null && specialtyId == null) return null;
+	const delta = [...(report.history ?? [])].reverse().find((d) => d.comparable);
+	if (!delta) return null;
+	const keep = (x: ChangeItem) => sectors.includes(x.sector) && (prefectureId == null || x.prefectureId === prefectureId) && (specialtyId == null || x.specialtyId === specialtyId);
+	return {
+		from: delta.from,
+		to: delta.to,
+		added: delta.addedItems.filter(keep),
+		removed: delta.removedItems.filter(keep),
+		partial: delta.addedItems.length < delta.added || delta.removedItems.length < delta.removed
+	};
 }
 
 /** A provider's first free date for one specialty (availability differs per specialty). */

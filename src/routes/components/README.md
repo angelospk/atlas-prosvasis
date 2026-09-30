@@ -161,6 +161,12 @@ footnote. Rows call `onSelect(prefectureId)`. Quiet prompt without a specialty.
 πια»), latest first; a week opens to list its records. With fewer than two complete scans: «Η
 σύγκριση ξεκινά από την επόμενη εβδομάδα».
 
+**SelectionChanges** `{ report, selection }`. Under the summary, once a prefecture or specialty
+is chosen: the latest comparable interval filtered to that selection («Νέες καταχωρίσεις» /
+«Δεν επιστρέφονται πλέον», six each, «Όλες οι αλλαγές» for the rest). The scan itemises public
+units only, so when its lists are shorter than its counts a note says so and an empty result
+reads «καμία καταγεγραμμένη αλλαγή σε δημόσια μονάδα», never «καμία αλλαγή».
+
 **MethodologyBlock** `{ report }`. A `<details>`: source and the list of scans, sectors, what a
 «σημείο παροχής» is, the hospital floor when `unitSpecialtiesComplete` is false, ELSTAT
 denominators, straight-line distances and the threshold, repaired pins, «removed» ≠ closed,
