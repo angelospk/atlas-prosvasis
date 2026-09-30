@@ -8,13 +8,13 @@
 	// the last date, each dot is one day (coloured with the map's wait classes), the dark tick is
 	// the mean. A dot shows its towns and units on hover, focus or tap. A row's name opens it
 	// on the prefecture map.
-	let { data, selection, onShowOnMap = (_key: string | null) => {}, onPickSpecialty = (_id: number | null) => {}, specialtyPicker = true }: {
+	// `order`/`dir` are bindable so a page can keep them in its link; `onSortChange` says when the reader changed them.
+	let { data, selection, onShowOnMap = (_key: string | null) => {}, onPickSpecialty = (_id: number | null) => {}, specialtyPicker = true, order = $bindable('mean'), dir = $bindable('desc'), onSortChange = () => {} }: {
 		data: AtlasData; selection: Selection; onShowOnMap?: (key: string | null) => void; onPickSpecialty?: (id: number | null) => void; specialtyPicker?: boolean;
+		order?: WaitOrder; dir?: SortDir; onSortChange?: () => void;
 	} = $props();
 	const uid = $props.id();
 	const idx = $derived(buildIndex(data));
-	let order = $state<WaitOrder>('mean');
-	let dir = $state<SortDir>('desc');
 	const rows = $derived(waitRows(data, idx, selection, order, dir));
 	let showingAll = $state(false);
 	let hovered = $state<{ key: string; days: number } | null>(null);
@@ -63,10 +63,10 @@
 		<div><h2 id={`${uid}-title`}>Αναμονή για ραντεβού</h2><p class="sub">{selectionLabel(idx, selection)} · ημέρες από τη σάρωση της {fmtDay(data.scan.at)}</p></div>
 		<div class="tools">
 			{#if rows.length > 1}<div class="order"><label for={`${uid}-order`}>Ταξινόμηση</label>
-				<span class="sort"><select id={`${uid}-order`} bind:value={order}>
+				<span class="sort"><select id={`${uid}-order`} bind:value={order} onchange={() => onSortChange()}>
 					<option value="mean">Μέση αναμονή</option>
 					<option value="first">Πρώτο ραντεβού</option>
-				</select><button type="button" class="tool dir" aria-label={dir === 'asc' ? 'Αύξουσα σειρά' : 'Φθίνουσα σειρά'} title={dir === 'asc' ? 'Αύξουσα σειρά' : 'Φθίνουσα σειρά'} onclick={() => (dir = dir === 'asc' ? 'desc' : 'asc')}><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" class:asc={dir === 'asc'}><path d="M8 2v11M3.5 8.5 8 13l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span>
+				</select><button type="button" class="tool dir" aria-label={dir === 'asc' ? 'Αύξουσα σειρά' : 'Φθίνουσα σειρά'} title={dir === 'asc' ? 'Αύξουσα σειρά' : 'Φθίνουσα σειρά'} onclick={() => { dir = dir === 'asc' ? 'desc' : 'asc'; onSortChange(); }}><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" class:asc={dir === 'asc'}><path d="M8 2v11M3.5 8.5 8 13l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span>
 			</div>{/if}
 			<button class="tool" onclick={exportCsv}>CSV</button>
 		</div>

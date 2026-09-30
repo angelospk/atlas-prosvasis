@@ -55,7 +55,7 @@ import WaitDistribution from './WaitDistribution.svelte';
 import Page from '../+page.svelte';
 import { dayAxis, WAIT_FILL, waitClass, waitPoints, waitSamples } from './waits';
 import { contrast, mixOklab, readableText } from './format';
-import { pickerHidden, readAtlasUrl, sectorPickerHidden, widgetUrl, writeAtlasUrl } from '$lib/atlas/url';
+import { pickerHidden, readAtlasUrl, readWaitSort, sectorPickerHidden, widgetUrl, writeAtlasUrl, writeWaitSort } from '$lib/atlas/url';
 import { prefLabel } from './format';
 import AtlasFooter from './AtlasFooter.svelte';
 import HeroConstellation from './HeroConstellation.svelte';
@@ -839,6 +839,13 @@ describe('round 3: no redundant controls', () => {
 });
 
 describe('url parameters', () => {
+	it('wait sort: read and written as wait_order / wait_dir, defaults omitted, junk ignored', () => {
+		expect(readWaitSort(new URL('https://x.test/'))).toEqual({ order: 'mean', dir: 'desc' });
+		expect(readWaitSort(new URL('https://x.test/?wait_order=first&wait_dir=asc'))).toEqual({ order: 'first', dir: 'asc' });
+		expect(readWaitSort(new URL('https://x.test/?wait_order=x&wait_dir=y'))).toEqual({ order: 'mean', dir: 'desc' });
+		expect(writeWaitSort(new URL('https://x.test/?prefecture=3#atlas-waits'), { order: 'first', dir: 'asc' }).href).toBe('https://x.test/?prefecture=3&wait_order=first&wait_dir=asc#atlas-waits');
+		expect(writeWaitSort(new URL('https://x.test/?wait_order=first&wait_dir=asc&a=1'), { order: 'mean', dir: 'desc' }).href).toBe('https://x.test/?a=1');
+	});
 	it('accept ids or accent-free names for prefecture and specialty', () => {
 		const data = fixture as unknown as AtlasData;
 		const spec = data.specialties[0];

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { pushState, replaceState } from '$app/navigation';
-	import { readAtlasUrl, writeAtlasUrl, type MapMetric } from '$lib/atlas/url';
+	import { readAtlasUrl, readWaitSort, writeAtlasUrl, writeWaitSort, type MapMetric, type WaitSort } from '$lib/atlas/url';
 	import AtlasNav from './components/AtlasNav.svelte';
 	import AtlasFooter from './components/AtlasFooter.svelte';
 	import ShareWidget from './components/ShareWidget.svelte';
@@ -35,6 +35,7 @@
 	let matrixMetric = $state<Metric>('count');
 	let selectedKey = $state<string | null>(null);
 	let mapMetric = $state<MapMetric>('coverage');
+	let waitSort = $state<WaitSort>({ order: 'mean', dir: 'desc' });
 	let syncingUrl = false;
 	let scrollLockUntil = 0;
 	let coverageExpanded = $state(false);
@@ -178,7 +179,7 @@
 	/** Returns whether a new history entry was pushed. */
 	function syncUrl(push = false, hash?: string): boolean {
   if (!mounted || syncingUrl) return false;
-  const url = writeAtlasUrl(new URL(window.location.href), selection, mapMetric);
+  const url = writeWaitSort(writeAtlasUrl(new URL(window.location.href), selection, mapMetric), waitSort);
   if (hash) url.hash = hash;
   if (url.href === window.location.href) return false;
   (push ? pushState : replaceState)(url, {});
@@ -200,6 +201,7 @@
   pendingSelection = null; updating = false;
   const state = readAtlasUrl(new URL(window.location.href), data);
   selection = state.selection; mapMetric = state.metric; selectedKey = focusKey(selection);
+  waitSort = readWaitSort(new URL(window.location.href));
   coverageExpanded = selectedKey != null;
   const hash = window.location.hash.slice(1);
   if (hash === 'atlas-details') toolsOpen = true;
@@ -325,7 +327,7 @@
 				</div>
 			</div>
 
-			<div class="wait-section"><WaitDistribution data={data} {selection} onShowOnMap={showWaitOnMap} specialtyPicker={false} /><ShareWidget widget="waits" {selection} /></div>
+			<div class="wait-section"><WaitDistribution data={data} {selection} onShowOnMap={showWaitOnMap} specialtyPicker={false} bind:order={waitSort.order} bind:dir={waitSort.dir} onSortChange={() => syncUrl()} /><ShareWidget widget="waits" {selection} {waitSort} /></div>
 
 			<details id="atlas-details" class="more" bind:open={toolsOpen} ontoggle={() => { toolsOpen = (document.getElementById('atlas-details') as HTMLDetailsElement | null)?.open ?? toolsOpen; void tick().then(() => { rebuildSectionObserver(); updateActiveSection(); }); }}>
 				<summary>Αναλυτικά</summary>

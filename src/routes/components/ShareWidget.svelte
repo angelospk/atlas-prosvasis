@@ -1,13 +1,16 @@
 <script lang="ts">
 	import type { Selection } from '$lib/atlas/types';
-	import { SECTOR_WIDGETS, SPECIALTY_WIDGETS, widgetUrl, WIDGET_LABELS, type MapMetric, type Widget } from '$lib/atlas/url';
-	let { widget, selection, metric = 'coverage' }: { widget: Widget; selection: Selection; metric?: MapMetric } = $props();
+	import { SECTOR_WIDGETS, SPECIALTY_WIDGETS, widgetUrl, WIDGET_LABELS, writeWaitSort, type MapMetric, type WaitSort, type Widget } from '$lib/atlas/url';
+	let { widget, selection, metric = 'coverage', waitSort = null }: { widget: Widget; selection: Selection; metric?: MapMetric; waitSort?: WaitSort | null } = $props();
 	const uid = $props.id();
 	let open = $state(false);
 	let status = $state('');
 	let specialtyPicker = $state(true);
 	let sectorPicker = $state(true);
-	const url = $derived(widgetUrl(widget, selection, metric, undefined, specialtyPicker, sectorPicker).href);
+	const url = $derived.by(() => {
+		const u = widgetUrl(widget, selection, metric, undefined, specialtyPicker, sectorPicker);
+		return (waitSort ? writeWaitSort(u, waitSort) : u).href;
+	});
 	const code = $derived(`<iframe src="${url.replaceAll('&', '&amp;')}" title="${WIDGET_LABELS[widget]} · Άτλας πρόσβασης" width="100%" height="800" style="border:0" loading="lazy"></iframe>`);
 	async function copy(value: string) { try { await navigator.clipboard.writeText(value); status = 'Αντιγράφηκε'; } catch { status = 'Επίλεξε και αντέγραψε το κείμενο παρακάτω.'; open = true; } }
 </script>

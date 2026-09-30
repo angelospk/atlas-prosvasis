@@ -4,7 +4,7 @@
 	import '../../components/atlas.css';
 	import type { AtlasReport, Metric, PrefectureBoundaries, Selection } from '$lib/atlas/types';
 	import { SECTORS, SECTOR_LABEL, type Sector } from '$lib/atlas/types';
-	import { pickerHidden, PUBLIC_SITE, readAtlasUrl, SECTOR_WIDGETS, sectorPickerHidden, SPECIALTY_WIDGETS, writeAtlasUrl, WIDGET_LABELS, type MapMetric, type Widget } from '$lib/atlas/url';
+	import { pickerHidden, PUBLIC_SITE, readAtlasUrl, readWaitSort, SECTOR_WIDGETS, sectorPickerHidden, SPECIALTY_WIDGETS, writeAtlasUrl, writeWaitSort, WIDGET_LABELS, type MapMetric, type WaitSort, type Widget } from '$lib/atlas/url';
 	import { orderSectors, parseKey, SECTOR_SHORT, titleCase } from '../../components/format';
 	import AtlasFooter from '../../components/AtlasFooter.svelte';
 	import MetricSummary from '../../components/MetricSummary.svelte';
@@ -24,6 +24,7 @@
 
 	let selection = $state<Selection>({ mode: 'place', prefectureId: null, specialtyId: null, sectors: [...SECTORS] });
 	let metric = $state<MapMetric>('coverage');
+	let waitSort = $state<WaitSort>({ order: 'mean', dir: 'desc' });
 	let sort = $state<Metric>('count');
 	let matrixMetric = $state<Metric>('count');
 	let selectedKey = $state<string | null>(null);
@@ -51,7 +52,7 @@
 		waits: 'atlas-waits', matrix: 'atlas-details', specialties: 'atlas-details', ranking: 'atlas-details', changes: 'atlas-details'
 	};
 	const fullUrl = $derived.by(() => {
-		const url = writeAtlasUrl(new URL('/', PUBLIC_SITE), selection, metric);
+		const url = writeWaitSort(writeAtlasUrl(new URL('/', PUBLIC_SITE), selection, metric), waitSort);
 		url.hash = SECTION[widget];
 		return url.href;
 	});
@@ -63,7 +64,7 @@
 		sync();
 	}
 	function sync() {
-		const url = writeAtlasUrl(new URL(window.location.href), selection, metric);
+		const url = writeWaitSort(writeAtlasUrl(new URL(window.location.href), selection, metric), waitSort);
 		if (url.href !== window.location.href) replaceState(url, {});
 	}
 	function openCell(key: string) {
@@ -89,6 +90,7 @@
 			sectorPicker = !sectorPickerHidden(url);
 			selection = state.selection;
 			metric = state.metric;
+			waitSort = readWaitSort(url);
 			if (selection.prefectureId != null && selection.specialtyId != null) selectedKey = `${selection.prefectureId}:${selection.specialtyId}`;
 		}
 		const media = window.matchMedia('(max-width: 899px)');
@@ -133,7 +135,7 @@
 		{:else if widget === 'points'}
 			<AccessMap {data} {selection} {selectedKey} onSelect={openCell} />
 		{:else if widget === 'waits'}
-			<WaitDistribution {data} {selection} onPickSpecialty={pickSpecialty} onShowOnMap={showOnMap} {specialtyPicker} />
+			<WaitDistribution {data} {selection} onPickSpecialty={pickSpecialty} onShowOnMap={showOnMap} {specialtyPicker} bind:order={waitSort.order} bind:dir={waitSort.dir} onSortChange={sync} />
 		{:else if widget === 'list'}
 			<CoverageList {data} {selection} {sort} onSort={(s) => { sort = s; selectedKey = null; }} {selectedKey} onSelect={(key) => (selectedKey = key != null && selectedKey !== key ? key : null)} {compact} expanded={listExpanded} onExpandedChange={(next) => (listExpanded = next)} />
 		{:else if widget === 'summary'}

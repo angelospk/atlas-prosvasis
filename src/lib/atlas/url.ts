@@ -52,6 +52,24 @@ export function writeAtlasUrl(url: URL, selection: Selection, metric: MapMetric)
 	return next;
 }
 
+/** How the wait chart ranks its rows: `wait_order` (mean | first) and `wait_dir` (desc | asc). */
+export interface WaitSort { order: 'mean' | 'first'; dir: 'desc' | 'asc' }
+export function readWaitSort(url: URL): WaitSort {
+	return {
+		order: url.searchParams.get('wait_order') === 'first' ? 'first' : 'mean',
+		dir: url.searchParams.get('wait_dir') === 'asc' ? 'asc' : 'desc'
+	};
+}
+/** The defaults (mean, desc) leave the link clean. */
+export function writeWaitSort(url: URL, sort: WaitSort): URL {
+	const next = new URL(url);
+	if (sort.order === 'mean') next.searchParams.delete('wait_order');
+	else next.searchParams.set('wait_order', sort.order);
+	if (sort.dir === 'desc') next.searchParams.delete('wait_dir');
+	else next.searchParams.set('wait_dir', sort.dir);
+	return next;
+}
+
 /** Widgets whose content depends on the specialty, so an embed can offer a specialty picker. */
 export const SPECIALTY_WIDGETS: readonly Widget[] = ['coverage', 'points', 'waits', 'list', 'summary', 'ranking'];
 /** `?specialty_picker=0` hides the embed's specialty picker; anything else (or nothing) shows it. */
