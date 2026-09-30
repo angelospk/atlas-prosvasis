@@ -369,15 +369,15 @@
 </script>
 
 <figure class="choro">
+	<figcaption>
+		<h2>{title}</h2>
+		<p class="sub">{subtitle} · σάρωση {scanDate} · κάτοικοι {data.populationYear}</p>
+	</figcaption>
  <div class="metric-switch" role="group" aria-label="Μέτρηση χάρτη">
   {#each [{id:'coverage', label:'Κάλυψη'}, {id:'first', label:'Πρώτο ραντεβού'}, {id:'mean', label:'Μέση αναμονή'}] as item (item.id)}
    <button type="button" aria-pressed={metric === item.id} onclick={() => onMetric(item.id as MapMetric)}>{item.label}</button>
   {/each}
  </div>
-	<figcaption>
-		<h2>{title}</h2>
-		<p class="sub">{subtitle} · σάρωση {scanDate} · κάτοικοι {data.populationYear}</p>
-	</figcaption>
 
 	<div class="frame" bind:this={frame}>
 		<svg
@@ -497,7 +497,8 @@
 {/snippet}
 
 <style>
- .metric-switch { display:flex; flex-wrap:wrap; gap:4px; background:var(--paper-2); padding:4px; border-radius:8px; width:fit-content; }
+ /* After the figcaption in the DOM (it must be first), above it on screen. */
+ .metric-switch { order:-1; display:flex; flex-wrap:wrap; gap:4px; background:var(--paper-2); padding:4px; border-radius:8px; width:fit-content; }
  .metric-switch button { border:0; background:none; padding:.6rem .8rem; min-height:44px; border-radius:5px; font-size:.82rem; }
  .metric-switch button[aria-pressed='true'] { background:var(--accent); color:white; }
 

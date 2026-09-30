@@ -14,6 +14,7 @@
 		fmtWaitCompact,
 		METRIC_LABEL,
 		nearestFor,
+		nearbySites,
 		parseKey,
 		plural,
 		prefLabel,
@@ -67,7 +68,6 @@
 	function mixTitle(counts: Record<string, number>): string {
 		return SECTORS.map((s) => `${SECTOR_LABEL[s]}: ${counts[s] ?? 0}`).join(' · ');
 	}
-	const ariaSort = (m: Metric) => (sort === m ? 'descending' : 'none') as 'descending' | 'none';
 	const dateOffset = (date: string | null) => daysFromScan(date, data.scan.at);
 	function detailId(key: string) {
 		return `${uid}-detail-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
@@ -112,7 +112,9 @@
 		const cell = pref ? (idx.cellByKey.get(selectedKey!) ?? null) : null;
 		const nearest = cell && providers.length === 0 ? nearestFor(idx, cell, selection.sectors) : null;
 		const nearestPref = nearest?.provider?.prefectureId != null ? (idx.prefById.get(nearest.provider.prefectureId) ?? null) : null;
-		return { spec, pref, providers, groups, nearest, nearestPref };
+		// Where else to go: a few more sites after the nearest, each with its first date.
+		const nearby = cell && providers.length === 0 && nearest?.provider ? nearbySites(idx, cell.prefectureId, cell.specialtyId, selection.sectors, nearest.provider.id) : [];
+		return { spec, pref, providers, groups, nearest, nearestPref, nearby };
 	});
 </script>
 
@@ -133,36 +135,37 @@
 		</label>{/if}
 	</header>
 
-	<div class="table" role="table" aria-label="Κάλυψη">
+	<!-- A list of row buttons, not an ARIA table: table roles on a <button> hide that it is a button. -->
+	<div class="table">
 		{#if !compact}
-		<div class="head" role="row">
-			<span class="c-name" role="columnheader">{nameHead}</span>
-			<span class="c-mix" role="columnheader" title="Φορείς: ΕΣΥ · ΠΦΥ · ΕΟΠΥΥ · Ιδιώτες">Φορείς</span>
+		<div class="head">
+			<span class="c-name">{nameHead}</span>
+			<span class="c-mix" title="Φορείς: ΕΣΥ · ΠΦΥ · ΕΟΠΥΥ · Ιδιώτες">Φορείς</span>
 			{#each COLUMNS as metric (metric)}
 				{@const label = metric === 'nearestKm' ? (national ? `Έδρες > ${flagKm} χλμ` : 'Πλησιέστερος') : metric === 'count' && national ? 'Σημεία · νομοί' : METRIC_LABEL[metric]}
-				<button type="button" class="c-{metric} sort" class:on={sort === metric} role="columnheader" aria-sort={ariaSort(metric)} onclick={() => onSort(metric)} title={metric === 'nearestKm' ? 'Από την έδρα, σε ευθεία' : undefined}>{label}{#if sort === metric}<span class="arrow" aria-hidden="true">↓</span>{/if}</button>
+				<button type="button" class="c-{metric} sort" class:on={sort === metric} aria-pressed={sort === metric} onclick={() => onSort(metric)} title={metric === 'nearestKm' ? 'Από την έδρα, σε ευθεία' : undefined}><span class="sr-only">Ταξινόμηση:</span> {label}{#if sort === metric}<span class="arrow" aria-hidden="true">↓</span>{/if}</button>
 			{/each}
 		</div>
 		{/if}
 
 		{#if rows.length === 0}<p class="empty">Διάλεξε ειδικότητα για να δεις τους νομούς.</p>{/if}
-		<ol id={listId} class="rows" role="rowgroup">
+		<ol id={listId} class="rows">
 			{#each shown as r (r.key)}
 				{@const off = dateOffset(r.earliestDate)}
 				{@const open = selectedKey === r.key}
-				<li role="presentation" class:open>
-					<button type="button" class="row" data-key={r.key} class:sel={open} class:none={r.count === 0} role="row" aria-expanded={open} aria-controls={open ? detailId(r.key) : undefined} onclick={() => onSelect(open ? null : r.key)}>
-						<span class="c-name" role="cell"><span class="name">{r.name}</span>{#if r.sub}<span class="sub">{r.sub}</span>{/if}</span>
-						<span class="c-mix mix" role="cell" title={mixTitle(r.counts)} aria-label={mixTitle(r.counts)}>{#each SECTORS as sector (sector)}<span class="smark {sector}" class:off={!selection.sectors.includes(sector) || r.counts[sector] === 0}></span>{/each}</span>
-						<span class="c-count num" role="cell">
-							<span class="desktop-count">{#if r.count === 0}<span class="zero">0</span>{:else}{fmtInt(r.count)}{/if}{#if national && r.prefsWith != null}<span class="sub">σε {r.prefsWith}/{prefTotal}</span>{/if}</span>
-							<span class="mobile-count">{fmtInt(r.count)} σημεία{#if national && r.prefsWith != null}<span class="sub"> · Νομοί: {fmtInt(r.prefsWith)}</span><span class="sr-only">Κάλυψη σε {fmtInt(r.prefsWith)} νομούς</span>{/if}</span>
+				<li class:open>
+					<button type="button" class="row" data-key={r.key} class:sel={open} class:none={r.count === 0} aria-expanded={open} aria-controls={open ? detailId(r.key) : undefined} onclick={() => onSelect(open ? null : r.key)}>
+						<span class="c-name"><span class="name">{r.name}</span>{#if r.sub}<span class="sub">{r.sub}</span>{/if}</span>
+						<span class="c-mix mix" title={mixTitle(r.counts)} aria-label={mixTitle(r.counts)}>{#each SECTORS as sector (sector)}<span class="smark {sector}" class:off={!selection.sectors.includes(sector) || r.counts[sector] === 0}></span>{/each}</span>
+						<span class="c-count num">
+							<span class="desktop-count"><span class="sr-only">Σημεία:</span> {#if r.count === 0}<span class="zero">0</span>{:else}{fmtInt(r.count)}{/if}{#if national && r.prefsWith != null}<span class="sub">σε {r.prefsWith}/{prefTotal}</span>{/if}</span>
+							<span class="mobile-count">{fmtInt(r.count)} {r.count === 1 ? 'σημείο' : 'σημεία'}{#if national && r.prefsWith != null}&nbsp;<span class="sub" aria-hidden="true">· Νομοί: {fmtInt(r.prefsWith)}</span><span class="sr-only">Κάλυψη σε {fmtInt(r.prefsWith)} νομούς</span>{/if}</span>
 						</span>
-						<span class="c-per100k num" role="cell">{#if r.count === 0}<span class="zero">{EMPTY}</span>{:else}{fmtPer100k(r.per100k)}{/if}</span>
-						<span class="c-earliestDate num" role="cell">
+						<span class="c-per100k num"><span class="sr-only">Ανά 100 χιλ. κατοίκους:</span> {#if r.count === 0}<span class="zero">{EMPTY}</span>{:else}{fmtPer100k(r.per100k)}{/if}</span>
+						<span class="c-earliestDate num"><span class="sr-only">Πρώτο ραντεβού:</span>
 							{#if compact}<span class="compact-date">{fmtWaitCompact(r.earliestDate, data.scan.at)}</span>{:else}<span class="full-date">{#if r.earliestDate}<span>{fmtDay(r.earliestDate)}</span><span class="sub">{fmtOffset(off)}</span>{:else}<span class="zero">{EMPTY}</span>{/if}</span>{/if}
 						</span>
-						{#if !compact}<span class="c-nearestKm num" class:national-distance={national} role="cell">
+						{#if !compact}<span class="c-nearestKm num" class:national-distance={national}><span class="sr-only">{national ? `Έδρες πάνω από ${flagKm} χλμ:` : 'Πλησιέστερο από την έδρα:'}</span>
 							{#if national}{#if (r.prefsFlagged ?? 0) > 0}<span class="flag">{r.prefsFlagged} {r.prefsFlagged === 1 ? 'έδρα' : 'έδρες'}</span><span class="sub">έως {fmtKm(r.nearestKm)}</span>{:else if r.nearestUnknown}<span class="unknown hatch">άγνωστο</span>{:else}<span class="ok">καμία</span>{/if}
 							{:else if r.count > 0}<span class="ok">εντός</span>{#if r.nearestKm != null && r.nearestKm > 0}<span class="sub">{fmtKm(r.nearestKm)} από την έδρα</span>{/if}
 							{:else if r.nearestUnknown}<span class="unknown hatch">άγνωστο</span>{:else}<span class:flag={r.flagged}>{fmtKm(r.nearestKm)}</span>{/if}
@@ -171,12 +174,17 @@
 					</button>
 
 					{#if open && detail}
-						<div id={detailId(r.key)} class="detail" role="row">
+						<div id={detailId(r.key)} class="detail">
 							{#if detail.providers.length === 0}
 								<p class="dsum">Δεν καταγράφεται σημείο{selection.sectors.length < SECTORS.length ? ' στους επιλεγμένους φορείς' : ''}.</p>
 								{#if detail.nearest}
 									{#if detail.nearest.unknown || !detail.nearest.provider}<p class="dnear"><span class="hatch swatch" aria-hidden="true"></span>Χωρίς μέτρηση: κανένα σημείο με θέση στους επιλεγμένους φορείς.</p>
 									{:else}<p class="dnear"><span class="dlabel">Πλησιέστερο:</span><b>{providerName(detail.nearest.provider)}</b><span class="muted">{titleCase(detail.nearest.provider.city)}{detail.nearestPref ? `, ${prefLabel(detail.nearestPref)}` : ''}</span><span class="km" class:flag={detail.nearest.km != null && detail.nearest.km > flagKm}>{fmtKm(detail.nearest.km)}</span><span class="muted">Από την έδρα του νομού, σε ευθεία.</span></p>{/if}
+								{/if}
+								{#if detail.nearby.length}
+									<section class="group alt"><h4>Άλλα κοντινά σημεία</h4>
+										<ul>{#each detail.nearby as { provider, km } (provider.id)}{@const date = providerDate(provider, detail.spec?.id ?? 0)}<li><span class="pname">{providerName(provider)}</span><span class="ptown">{titleCase(provider.city)}{provider.prefectureId != null ? `, ${prefLabel(idx.prefById.get(provider.prefectureId))}` : ''} · <span class="km" class:flag={km > flagKm}>{fmtKm(km)}</span></span><span class="pdate">{#if compact}<span class="compact-date">{fmtWaitCompact(date, data.scan.at)}</span>{:else}<span class="full-date">{date ? fmtDay(date) : EMPTY}</span>{/if}</span></li>{/each}</ul>
+									</section>
 								{/if}
 							{:else}
 								<p class="dsum">{plural(detail.providers.length, 'σημείο', 'σημεία')}{detail.pref ? ` στον ${detail.pref.genitive}` : ' σε όλη την Ελλάδα'} · ημερομηνίες από τη σάρωση της {fmtDay(data.scan.at)}.</p>
@@ -242,11 +250,12 @@
 	.dnear { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.5rem; margin: 0; }
 	.dlabel { color: var(--ink-3); }
 	.dnear b { font-weight: 600; }
-	.km { font-weight: 600; font-variant-numeric: tabular-nums; }
+	.km { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 	.km.flag { color: var(--urgent); }
 	.muted { color: var(--ink-3); font-weight: 400; }
 	.swatch { display: inline-block; width: 14px; height: 10px; border: 1px solid var(--line-2); border-radius: 2px; }
 	.groups { display: grid; gap: 0.7rem; }
+	.alt { margin-top: 0.6rem; }
 	.group h4 { display: flex; align-items: center; gap: 0.4rem; margin: 0 0 0.3rem; color: var(--ink-2); font-family: var(--sans); font-size: 0.76rem; font-weight: 600; }
 	.group h4 .n { color: var(--ink-3); font-weight: 500; }
 	.group ul { display: grid; gap: 0.3rem; list-style: none; margin: 0; padding: 0; }

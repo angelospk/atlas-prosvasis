@@ -293,6 +293,18 @@ export function nearestFor(idx: AtlasIndex, cell: CoverageCell, sectors: readonl
 	return { km: Math.round(bestKm * 10) / 10, provider: best, unknown: false };
 }
 
+/** For a prefecture without the specialty: the next `n` located sites in `sectors`, nearest to its
+ *  seat first (in a straight line), leaving out `skipId` (already shown as «Πλησιέστερο»). */
+export function nearbySites(idx: AtlasIndex, prefectureId: number, specialtyId: number, sectors: readonly Sector[], skipId: string | null, n = 3): { provider: Provider; km: number }[] {
+	const pref = idx.prefById.get(prefectureId);
+	if (!pref) return [];
+	return (idx.provBySpec.get(specialtyId) ?? [])
+		.filter((p) => p.id !== skipId && sectors.includes(p.sector) && p.lat != null && p.lon != null)
+		.map((p) => ({ provider: p, km: Math.round(haversineKm(pref.seat.lat, pref.seat.lon, p.lat!, p.lon!) * 10) / 10 }))
+		.sort((a, b) => a.km - b.km || a.provider.id.localeCompare(b.provider.id))
+		.slice(0, n);
+}
+
 /** Soonest first-free date among the prefecture's public providers of the specialty in `sectors`. */
 /** Display name. The public data names public units only; a private or ΕΟΠΥΥ doctor
  *  arrives without a name and is shown by what they are. */

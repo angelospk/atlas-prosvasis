@@ -24,6 +24,7 @@ import {
 	fold,
 	isDefaultSelection,
 	nearestFor,
+	nearbySites,
 	parseKey,
 	projectLonLat,
 	projectRings,
@@ -219,6 +220,22 @@ describe('deriveRows', () => {
 		const near = nearestFor(idx, idx.cellByKey.get('1:16')!, ['private']);
 		expect(near.unknown || near.km != null).toBe(true);
 	});
+	it('nearbySites: the next located sites for a prefecture without one, nearest first, the «Πλησιέστερο» one skipped', () => {
+		const cell = idx.cellByKey.get('1:6')!;
+		const nearest = nearestFor(idx, cell, [...SECTORS]);
+		const next = nearbySites(idx, 1, 6, [...SECTORS], nearest.provider?.id ?? null);
+		expect(next.length).toBeGreaterThan(0);
+		expect(next.length).toBeLessThanOrEqual(3);
+		for (const { provider, km } of next) {
+			expect(provider.id).not.toBe(nearest.provider?.id);
+			expect(provider.specialtyIds).toContain(6);
+			expect(provider.lat).not.toBeNull();
+			expect(km).toBeGreaterThanOrEqual(nearest.km ?? 0);
+		}
+		expect(next.map((x) => x.km)).toEqual([...next.map((x) => x.km)].sort((a, b) => a - b));
+		// Sectors filter the choice: none of another sector slips in.
+		expect(nearbySites(idx, 1, 6, ['esy'], null).every((x) => x.provider.sector === 'esy')).toBe(true);
+	});
 	it('specialty rows: one per prefecture, sorted farthest first with nulls last', () => {
 		const rows = sortRows(deriveRows(data, idx, { ...all, mode: 'specialty', specialtyId: 22 }), 'nearestKm');
 		expect(rows.length).toBe(data.prefectures.length);
@@ -272,9 +289,23 @@ describe('server render', () => {
 		expect(none).toContain('Δεν καταγράφεται σημείο');
 		expect(none).toContain('Πλησιέστερο:');
 		expect(none).toContain('153 χλμ');
+		// …and a few more places to go, each with its first date.
+		expect(none).toContain('Άλλα κοντινά σημεία');
+		expect(withSites).not.toContain('Άλλα κοντινά σημεία');
 		// Collapsed: nothing expanded.
 		const closed = render(CoverageList, { props: { data, selection: sel, sort: 'count', onSort: noop, selectedKey: null, onSelect: noop } }).body;
 		expect(closed).not.toContain('aria-expanded="true"');
+	});
+	it('CoverageList: rows and sort headers stay native buttons (no table role hides them)', () => {
+		const html = render(CoverageList, { props: { data, selection: { ...sel, prefectureId: null, specialtyId: null }, sort: 'per100k', onSort: noop, selectedKey: null, onSelect: noop, compact: false } }).body;
+		expect(html).not.toMatch(/<button[^>]*role="/);
+		expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>(?:<[^>]*>)*Ταξινόμηση:(?:<[^>]*>)* Ανά 100/);
+		expect(html).toContain('1 σημείο<');
+		expect(html).not.toContain('>1 σημεία');
+		expect((html.match(/aria-pressed="false"/g) ?? []).length).toBe(3);
+		// Without table roles, each value says what it is.
+		const row = html.slice(html.indexOf('class="row'), html.indexOf('</button>', html.indexOf('class="row')));
+		for (const label of ['Σημεία:', 'Ανά 100 χιλ. κατοίκους:', 'Πρώτο ραντεβού:', 'Έδρες πάνω από']) expect(row).toContain(label);
 	});
 	it('no em dash and no eyebrow in any rendered component', () => {
 		const html = [
@@ -736,6 +767,20 @@ describe('round 2: brand, copy, embeds and contrast', () => {
 		expect(uniqueSites(two, { mode: 'place', prefectureId: 20, specialtyId: b.id, sectors: ['esy'] })).toHaveLength(1);
 		expect(uniqueSites(two, { mode: 'place', prefectureId: 21, specialtyId: null, sectors: [...SECTORS] })).toHaveLength(0);
 	});
+	it('MetricSummary: no reassurance for a specialty found nowhere; a sector filter is named', () => {
+		// Fixture: specialty 32 has no ΕΣΥ site anywhere.
+		const nowhere = render(MetricSummary, { props: { data, selection: { mode: 'specialty', prefectureId: null, specialtyId: 32, sectors: ['esy'] } } }).body;
+		expect(nowhere).toContain('κανένα σημείο πουθενά στην Ελλάδα');
+		expect(nowhere).not.toContain('καμία έδρα πάνω από');
+		// A matching site without a prefecture still exists: not «πουθενά».
+		const unassigned = { ...data, providers: [...data.providers, { ...data.providers[0], id: 'x-null', sector: 'esy' as const, prefectureId: null, specialtyIds: [32] }] };
+		expect(render(MetricSummary, { props: { data: unassigned, selection: { mode: 'specialty', prefectureId: null, specialtyId: 32, sectors: ['esy'] } } }).body).not.toContain('πουθενά στην Ελλάδα');
+		const some = render(MetricSummary, { props: { data, selection: { mode: 'specialty', prefectureId: null, specialtyId: 32, sectors: [...SECTORS] } } }).body;
+		expect(some).not.toContain('πουθενά στην Ελλάδα');
+		const national = (sectors: Selection['sectors']) => render(MetricSummary, { props: { data, selection: { mode: 'place', prefectureId: null, specialtyId: null, sectors } } }).body;
+		expect(national(['esy', 'pfy'])).toContain('Μόνο: ΕΣΥ + ΠΦΥ');
+		expect(national([...SECTORS])).not.toContain('Μόνο:');
+	});
 	it('forSpecialty puts a doctor title in the accusative and leaves fields alone', () => {
 		expect(forSpecialty('Ουρολόγος')).toBe('ουρολόγο');
 		expect(forSpecialty('Μαιευτήρας-γυναικολόγος')).toBe('μαιευτήρα-γυναικολόγο');
@@ -805,6 +850,12 @@ describe('url parameters', () => {
 		expect(state.selection.prefectureId).toBe(pref.id);
 		expect(state.metric).toBe('mean');
 		expect(readAtlasUrl(new URL('https://x.test/?specialty=nope&metric=bad'), data).selection.specialtyId).toBeNull();
+	});
+	it('canonicalise to drop what was ignored: unknown ids, bad sectors and metrics go, other params and the hash stay', () => {
+		const data = fixture as unknown as AtlasData;
+		const url = new URL('https://x.test/?specialty=999&prefecture=abc&sectors=xyz&metric=bad&utm=1#atlas-waits');
+		const { selection, metric } = readAtlasUrl(url, data);
+		expect(writeAtlasUrl(url, selection, metric).href).toBe('https://x.test/?utm=1#atlas-waits');
 	});
 });
 

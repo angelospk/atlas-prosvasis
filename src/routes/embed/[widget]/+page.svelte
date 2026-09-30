@@ -28,7 +28,8 @@
 	let matrixMetric = $state<Metric>('count');
 	let selectedKey = $state<string | null>(null);
 	let compact = $state(true);
-	let matrixPrefectureId = $state<number | null>(null);
+	// An embed opens on the whole list; «Λιγότερες» still collapses it.
+	let listExpanded = $state(true);
 	let ready = $state(false);
 	// Shown only after the query is read, so a locked embed never flashes the picker.
 	let specialtyPicker = $state(false);
@@ -125,18 +126,20 @@
 				{/each}
 			</div>
 		{/if}
-		{#if widget === 'coverage' && page.boundaries}
-			<PrefectureChoropleth {data} boundaries={page.boundaries} {selection} onSelect={(prefectureId) => update({ prefectureId: selection.prefectureId === prefectureId ? null : prefectureId })} {metric} onMetric={(m) => { metric = m; sync(); }} onSpecialty={specialtyPicker ? pickSpecialty : null} />
+		{#if widget === 'coverage'}
+			{#if page.boundaries}
+				<PrefectureChoropleth {data} boundaries={page.boundaries} {selection} onSelect={(prefectureId) => update({ prefectureId: selection.prefectureId === prefectureId ? null : prefectureId })} {metric} onMetric={(m) => { metric = m; sync(); }} onSpecialty={specialtyPicker ? pickSpecialty : null} />
+			{:else}<p>Τα όρια των νομών δεν φορτώθηκαν. Δοκίμασε ξανά σε λίγο.</p>{/if}
 		{:else if widget === 'points'}
 			<AccessMap {data} {selection} {selectedKey} onSelect={openCell} />
 		{:else if widget === 'waits'}
 			<WaitDistribution {data} {selection} onPickSpecialty={pickSpecialty} onShowOnMap={showOnMap} {specialtyPicker} />
 		{:else if widget === 'list'}
-			<CoverageList {data} {selection} {sort} onSort={(s) => { sort = s; selectedKey = null; }} {selectedKey} onSelect={(key) => (selectedKey = key != null && selectedKey !== key ? key : null)} {compact} expanded={true} onExpandedChange={() => {}} />
+			<CoverageList {data} {selection} {sort} onSort={(s) => { sort = s; selectedKey = null; }} {selectedKey} onSelect={(key) => (selectedKey = key != null && selectedKey !== key ? key : null)} {compact} expanded={listExpanded} onExpandedChange={(next) => (listExpanded = next)} />
 		{:else if widget === 'summary'}
 			<MetricSummary {data} {selection} />
 		{:else if widget === 'matrix'}
-			<CoverageMatrix {data} sectors={selection.sectors} metric={matrixMetric} onMetric={(m) => (matrixMetric = m)} onSelect={openCell} {compact} prefectureId={matrixPrefectureId ?? selection.prefectureId ?? firstPrefectureId} onPrefectureChange={(id) => (matrixPrefectureId = id)} />
+			<CoverageMatrix {data} sectors={selection.sectors} metric={matrixMetric} onMetric={(m) => (matrixMetric = m)} onSelect={openCell} {compact} prefectureId={selection.prefectureId ?? firstPrefectureId} onPrefectureChange={(id) => update({ prefectureId: id })} />
 		{:else if widget === 'specialties'}
 			<SpecialtyCoverageBars {data} sectors={selection.sectors} selectedSpecialtyId={selection.specialtyId} onSelect={(specialtyId) => update({ specialtyId })} />
 		{:else if widget === 'ranking'}

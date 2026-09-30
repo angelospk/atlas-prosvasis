@@ -6,7 +6,7 @@
 	// entry then selects its specialty or prefecture.
 	import type { AtlasData, Selection } from '$lib/atlas/types';
 	import { SECTORS, SECTOR_LABEL } from '$lib/atlas/types';
-	import { buildIndex, daysFromScan, deriveRows, EMPTY, fmtDay, fmtInt, fmtKm, fmtOffset, fmtPer100k, parseKey, plural, prefLabel, providersIn, SECTOR_SHORT, titleCase, uniqueSites, type Row } from './format';
+	import { buildIndex, daysFromScan, deriveRows, EMPTY, isAllSectors, sectorsLabel, fmtDay, fmtInt, fmtKm, fmtOffset, fmtPer100k, parseKey, plural, prefLabel, providersIn, SECTOR_SHORT, titleCase, uniqueSites, type Row } from './format';
 
 	let {
 		data,
@@ -110,12 +110,17 @@
 {/snippet}
 
 <section class="summary" aria-live="polite">
+	<!-- Every figure below counts only these sectors; say so, or «ο κατάλογος έχει…» reads as the whole catalogue. -->
+	{#if !isAllSectors(selection.sectors)}<p class="scope">Μόνο: {sectorsLabel(selection.sectors)}</p>{/if}
 	{#if selection.mode === 'specialty'}
 		{#if spec}
 			<p class="lede">
 				<b>{titleCase(spec.name)}</b>: πάροχος στον κατάλογο σε
 				<b class="num">{withProvider} από {rows.length}</b> νομούς
-				{#if flagged > 0}
+				<!-- total, not withProvider: a site without a prefecture still exists. -->
+				{#if total === 0}
+					· κανένα σημείο πουθενά στην Ελλάδα{isAllSectors(selection.sectors) ? '' : ' σε αυτούς τους φορείς'}.
+				{:else if flagged > 0}
 					· σε <b class="num">{flagged}</b> {flagged === 1 ? 'έδρα' : 'έδρες'} ο πλησιέστερος είναι πάνω από
 					<span class="num">{flagKm} χλμ</span> μακριά (σε ευθεία).
 				{:else if unknown === 0}
@@ -223,6 +228,12 @@
 	.lede.muted {
 		color: var(--ink-3);
 		font-weight: 400;
+	}
+	.scope {
+		margin: 0 0 -0.5rem;
+		font-size: 0.78rem;
+		font-weight: 600;
+		color: var(--accent-d);
 	}
 	.num {
 		font-variant-numeric: tabular-nums;

@@ -51,6 +51,12 @@
 		return options.filter((o) => o.search.includes(q));
 	});
 
+	// Keep the active option visible while the arrows move it through a scrolling list.
+	$effect(() => {
+		// Reading `filtered` too: a new query with the cursor still at 0 must scroll back to it.
+		if (open && filtered[cursor]) document.getElementById(`${listId}-${cursor}`)?.scrollIntoView({ block: 'nearest' });
+	});
+
 	function show() {
 		if (!open) {
 			open = true;
@@ -68,8 +74,8 @@
 	}
 	function onKey(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
+			// Close only: focus stays on the input (ARIA combobox pattern).
 			hide();
-			(e.currentTarget as HTMLElement).blur();
 			return;
 		}
 		if (!open) {
@@ -121,7 +127,8 @@
 		onblur={onBlur}
 	/>
 	{#if open}
-		<ul class="list" id={listId} role="listbox">
+		<!-- tabindex -1: a scrolling list is otherwise a Tab stop in Chrome; focus stays on the input. -->
+		<ul class="list" id={listId} role="listbox" tabindex="-1" aria-label={label}>
 			{#each filtered as o, i (o.id ?? 'all')}
 				<!-- Keyboard lives on the combobox input (ARIA combobox pattern); options are pointer targets. -->
 				<!-- svelte-ignore a11y_click_events_have_key_events -->

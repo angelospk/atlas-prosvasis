@@ -21,7 +21,7 @@
 		titleCase
 	} from './format';
 	import { downloadText } from './download';
-	import { toCsv } from './format';
+	import { plural, toCsv } from './format';
 
 	let {
 		data,
@@ -134,7 +134,7 @@
 	});
 
 	function describe(cell: Val, spec: Specialty, pref: Prefecture): string {
-		const facts = [cell.count === 0 ? 'δεν καταγράφηκε πάροχος' : `${fmtInt(cell.count)} σημεία (${fmtPer100k(cell.per100k)} ανά 100 χιλ.)`];
+		const facts = [cell.count === 0 ? 'δεν καταγράφηκε πάροχος' : `${plural(cell.count, 'σημείο', 'σημεία')} (${fmtPer100k(cell.per100k)} ανά 100 χιλ.)`];
 		facts.push(cell.nearestKm == null ? 'απόσταση άγνωστη' : `πλησιέστερος ${fmtKm(cell.nearestKm)}`);
 		if (cell.earliestDate) facts.push(`πρώτο ραντεβού ${fmtDay(cell.earliestDate)}`);
 		return `${titleCase(spec.name)}, ${prefLabel(pref)}: ${facts.join(' · ')}`;
@@ -164,7 +164,7 @@
 		if (metric === 'nearestKm') return cell.nearestKm == null ? 'Χωρίς στοιχεία' : fmtKm(cell.nearestKm);
 		if (cell.count === 0) return '0 σημεία';
 		switch (metric) {
-			case 'count': return `${fmtInt(cell.count)} σημεία`;
+			case 'count': return plural(cell.count, 'σημείο', 'σημεία');
 			case 'per100k': return `${fmtPer100k(cell.per100k)} ανά 100.000 κατοίκους`;
 			case 'earliestDate': return fmtWaitCompact(cell.earliestDate, data.scan.at);
 		}

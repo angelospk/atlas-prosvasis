@@ -211,6 +211,8 @@
   if (!alive) return;
   if (hash) document.getElementById(hash)?.scrollIntoView({ behavior: 'instant' });
   syncingUrl = false;
+  // A shared link keeps only what was applied: unknown ids and bad values leave the address bar.
+  syncUrl();
  }
 	function togglePointMap() {
 		pointMapOpen = !pointMapOpen;
