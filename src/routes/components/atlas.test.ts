@@ -26,6 +26,7 @@ import {
 	nearestFor,
 	nearbySites,
 	selectionChanges,
+	cellRowFor,
 	parseKey,
 	projectLonLat,
 	projectRings,
@@ -44,6 +45,7 @@ import AtlasNav from './AtlasNav.svelte';
 import SnapshotNotice from './SnapshotNotice.svelte';
 import MetricSummary from './MetricSummary.svelte';
 import SelectionChanges from './SelectionChanges.svelte';
+import PrefectureComparison from './PrefectureComparison.svelte';
 import CoverageList from './CoverageList.svelte';
 import AccessMap from './AccessMap.svelte';
 import CoverageMatrix from './CoverageMatrix.svelte';
@@ -837,6 +839,29 @@ describe('round 3: no redundant controls', () => {
 		const specialtySelects = [...html.matchAll(/<select[^>]*>\s*(?:<!--[^>]*-->\s*)*<option value=""[^>]*>Όλες οι ειδικότητες/g)].length;
 		expect(specialtySelects).toBe(1);
 		expect(html).not.toContain('Διάλεξε νομό');
+	});
+});
+
+describe('prefecture comparison', () => {
+	const data = fixture as unknown as AtlasData;
+	const idx = buildIndex(data);
+	it('cellRowFor gives the same row the summary and the list use', () => {
+		const sel: Selection = { mode: 'place', prefectureId: 20, specialtyId: 16, sectors: ['esy', 'pfy'] };
+		const fromList = deriveRows(data, idx, sel).find((r) => r.key === '20:16')!;
+		expect(cellRowFor(data, idx, 20, 16, sel.sectors)).toEqual(fromList);
+		expect(cellRowFor(data, idx, 9999, 16, sel.sectors)).toBeNull();
+	});
+	it('PrefectureComparison: offers every other prefecture; with one chosen, both columns show', () => {
+		const sel: Selection = { mode: 'place', prefectureId: 20, specialtyId: 16, sectors: [...SECTORS] };
+		const empty = render(PrefectureComparison, { props: { data, selection: sel } }).body;
+		expect(empty).toContain('Σύγκρινε με άλλον νομό');
+		expect((empty.match(/<option value="\d+"/g) ?? []).length).toBe(data.prefectures.length - 1);
+		const other = data.prefectures.find((p) => p.id !== 20)!;
+		const both = render(PrefectureComparison, { props: { data, selection: sel, otherId: other.id } }).body;
+		expect(both).toContain(idx.prefById.get(20)!.name);
+		expect(both).toContain('Ανά 100 χιλ. κατοίκους');
+		expect(both).toContain('<table');
+		expect(render(PrefectureComparison, { props: { data, selection: { ...sel, specialtyId: null } } }).body).not.toContain('Σύγκρινε');
 	});
 });
 

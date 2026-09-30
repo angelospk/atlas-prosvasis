@@ -22,6 +22,7 @@
 	import CoverageRanking from './components/CoverageRanking.svelte';
 	import ScanChangeChart from './components/ScanChangeChart.svelte';
 	import SelectionChanges from './components/SelectionChanges.svelte';
+	import PrefectureComparison from './components/PrefectureComparison.svelte';
 	import MethodologyBlock from './components/MethodologyBlock.svelte';
 	import WaitDistribution from './components/WaitDistribution.svelte';
 
@@ -308,7 +309,7 @@
 
 			<section id="atlas-map" class="mapblock" aria-label="Χάρτης κάλυψης">
 				<div class="choro"><PrefectureChoropleth {data} boundaries={page.boundaries} selection={selection} onSelect={togglePrefecture} metric={mapMetric} onMetric={setMetric} /><ShareWidget widget="coverage" {selection} metric={mapMetric} /></div>
-				<div class="side"><MetricSummary {data} {selection} bind:request={summaryOpen} onPickSpecialty={pickSpecialty} onPickPrefecture={pickPrefecture} onShowSites={showSites} /><ShareWidget widget="summary" {selection} /><SelectionChanges report={data} {selection} /></div>
+				<div class="side"><MetricSummary {data} {selection} bind:request={summaryOpen} onPickSpecialty={pickSpecialty} onPickPrefecture={pickPrefecture} onShowSites={showSites} /><ShareWidget widget="summary" {selection} /><PrefectureComparison {data} {selection} /><SelectionChanges report={data} {selection} /></div>
 			</section>
 
 			<div class="explorer">

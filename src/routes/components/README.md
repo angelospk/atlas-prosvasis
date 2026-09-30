@@ -167,6 +167,11 @@ is chosen: the latest comparable interval filtered to that selection («Νέες
 units only, so when its lists are shorter than its counts a note says so and an empty result
 reads «καμία καταγεγραμμένη αλλαγή σε δημόσια μονάδα», never «καμία αλλαγή».
 
+**PrefectureComparison** `{ data, selection, otherId? }`. With a prefecture and a specialty chosen:
+a native picker for a second prefecture, then a small table of the same cell there (sites, per
+100k, first date, nearest from the seat), same sectors, via `cellRowFor`, so the figures match
+the summary and the list. The better value of each row is bold.
+
 **MethodologyBlock** `{ report }`. A `<details>`: source and the list of scans, sectors, what a
 «σημείο παροχής» is, the hospital floor when `unitSpecialtiesComplete` is false, ELSTAT
 denominators, straight-line distances and the threshold, repaired pins, «removed» ≠ closed,

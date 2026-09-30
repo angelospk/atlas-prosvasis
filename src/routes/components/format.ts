@@ -452,6 +452,13 @@ function nationalRow(data: AtlasData, idx: AtlasIndex, spec: Specialty, sectors:
 }
 
 /** Rows for the current selection: specialties (place mode) or prefectures (specialty mode). */
+/** One prefecture × specialty row, as the place-mode list builds it; null when there is no such cell. */
+export function cellRowFor(data: AtlasData, idx: AtlasIndex, prefectureId: number, specialtyId: number, sectors: readonly Sector[]): Row | null {
+	const cell = idx.cellByKey.get(cellKey(prefectureId, specialtyId));
+	const spec = idx.specById.get(specialtyId);
+	return cell && spec ? cellRow(data, idx, cell, sectors, titleCase(spec.name), null) : null;
+}
+
 export function deriveRows(data: AtlasData, idx: AtlasIndex, selection: Selection): Row[] {
 	const sectors = selection.sectors;
 	if (selection.mode === 'specialty') {
