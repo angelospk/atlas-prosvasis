@@ -11,6 +11,8 @@ export const WIDGET_LABELS: Record<Widget, string> = {
 };
 export const PUBLIC_SITE = 'https://atlas.haroldpoi.dev';
 export const PUBLIC_REPO = 'https://github.com/angelospk/atlas-prosvasis';
+// Anonymous Google Form: questions and data errors, no sign-in.
+export const FEEDBACK_FORM = 'https://forms.gle/fTzTAAcTSFFhzXi87';
 
 const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('el').replace(/ς/g, 'σ');
 

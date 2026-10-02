@@ -59,7 +59,7 @@ import WaitDistribution from './WaitDistribution.svelte';
 import Page from '../+page.svelte';
 import { dayAxis, WAIT_FILL, waitClass, waitPoints, waitSamples } from './waits';
 import { contrast, mixOklab, readableText } from './format';
-import { pickerHidden, readAtlasUrl, readWaitSort, sectorPickerHidden, widgetUrl, writeAtlasUrl, writeWaitSort } from '$lib/atlas/url';
+import { FEEDBACK_FORM, pickerHidden, readAtlasUrl, readWaitSort, sectorPickerHidden, widgetUrl, writeAtlasUrl, writeWaitSort } from '$lib/atlas/url';
 import { prefLabel } from './format';
 import AtlasFooter from './AtlasFooter.svelte';
 import HeroConstellation from './HeroConstellation.svelte';
@@ -822,6 +822,12 @@ describe('round 2: brand, copy, embeds and contrast', () => {
 		expect(html).toContain('class="atlas-mark');
 		expect(html).toContain('πηγή: e-ραντεβού');
 		expect(html).not.toContain('Ανεξάρτητη');
+		expect(html).not.toContain(FEEDBACK_FORM);
+	});
+	it('the page footer links the anonymous feedback form', () => {
+		const html = render(AtlasFooter).body;
+		expect(html).toContain(`href="${FEEDBACK_FORM}"`);
+		expect(html).toContain('Απορία ή πρόβλημα;');
 	});
 });
 
