@@ -115,6 +115,12 @@ function wideCoverageFixture(): AtlasData {
 		...base.specialties,
 		...Array.from({ length: 6 }, (_, i) => ({ id: 100 + i, name: `Ειδικότητα ${i + 1}` }))
 	];
+	const sample = base.cells.find((cell) => cell.counts.esy > 0)!;
+	base.cells.push(...Array.from({ length: 6 }, (_, i) => ({
+		...sample,
+		specialtyId: 100 + i,
+		counts: { esy: 1, pfy: 0, eopyy: 0, private: 0 }
+	})));
 	return base;
 }
 
@@ -468,11 +474,11 @@ describe('responsive atlas contracts', () => {
 		expect(SECTION_IDS.details).toBe('atlas-details');
 	});
 
-	it('compact coverage list truncates at eight, supports all sort options, and expands all rows', () => {
+	it('coverage list shows five mobile or ten desktop rows and expands all rows', () => {
 		const wide = wideCoverageFixture();
 		const props = { data: wide, selection: sel, sort: 'count' as const, onSort: noop, selectedKey: null, onSelect: noop, compact: true, expanded: false, onExpandedChange: noop };
 		const compact = render(CoverageList, { props }).body;
-		expect((compact.match(/data-key=/g) ?? []).length).toBe(8);
+		expect((compact.match(/data-key=/g) ?? []).length).toBe(5);
 		expect(compact).toContain('Περισσότερες');
 		expect(compact).toContain('Ταξινόμηση');
 		expect(compact).toContain('Νομοί:');
@@ -481,12 +487,31 @@ describe('responsive atlas contracts', () => {
 		expect(compact).not.toContain('Σεπ');
 		for (const metric of ['count', 'per100k', 'earliestDate', 'nearestKm'] as const) {
 			const sorted = render(CoverageList, { props: { ...props, sort: metric } }).body;
-			expect((sorted.match(/data-key=/g) ?? []).length).toBe(8);
+			expect((sorted.match(/data-key=/g) ?? []).length).toBe(5);
 		}
 		const expanded = render(CoverageList, { props: { ...props, expanded: true } }).body;
 		expect((expanded.match(/data-key=/g) ?? []).length).toBeGreaterThan(8);
 		const desktop = render(CoverageList, { props: { ...props, compact: false } }).body;
-		expect((desktop.match(/data-key=/g) ?? []).length).toBeGreaterThan(8);
+		expect((desktop.match(/data-key=/g) ?? []).length).toBe(10);
+	});
+
+	it('folds specialties with zero points separately and respects sector filters', () => {
+		const wide = wideCoverageFixture();
+		wide.specialties.push({ id: 200, name: 'Χωρίς σημεία' });
+		const props = { data: wide, selection: sel, sort: 'count' as const, onSort: noop, selectedKey: null, onSelect: noop };
+		const html = render(CoverageList, { props }).body;
+		const main = html.split('<details')[0];
+		expect((main.match(/data-key=/g) ?? []).length).toBe(10);
+		expect(main).not.toContain('Χωρίς σημεία');
+		expect(html).toMatch(/<details[^>]*class="missing[^"]*"[^>]*>/);
+		expect(html).not.toMatch(/<details[^>]* open/);
+		expect(html).toContain('Ειδικότητες χωρίς σημεία');
+		expect(html.split('<details')[1]).toContain('Χωρίς σημεία');
+		const filtered = render(CoverageList, { props: { ...props, selection: { ...sel, sectors: [] } } }).body;
+		expect(filtered.split('<details')[0]).not.toContain('data-key=');
+		expect(filtered).not.toContain('Περισσότερες');
+		const selected = render(CoverageList, { props: { ...props, selectedKey: deriveRows(wide, buildIndex(wide), sel).find((row) => row.name === 'Χωρίς σημεία')!.key } }).body;
+		expect(selected).toMatch(/<details[^>]* open/);
 	});
 
 	it('compact matrix renders labeled controls and numeric actions, desktop retains the matrix and pagination', () => {

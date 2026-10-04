@@ -57,7 +57,10 @@
 	const cell = $derived(selection.mode === 'place' && selection.prefectureId != null && selection.specialtyId != null ? `${selection.prefectureId}:${selection.specialtyId}` : null);
 	const cellPref = $derived(selection.prefectureId == null ? null : (idx.prefById.get(selection.prefectureId) ?? null));
 	const rows = $derived(sortRows(deriveRows(data, idx, selection).filter((r) => cell == null || r.key === cell), sort));
-	const shown = $derived(compact && !expanded ? rows.slice(0, 8) : rows);
+	const missing = $derived(selection.mode === 'place' && cell == null ? rows.filter((r) => r.count === 0) : []);
+	const available = $derived(selection.mode === 'place' && cell == null ? rows.filter((r) => r.count > 0) : rows);
+	const initialLimit = $derived(compact ? 5 : 10);
+	const shown = $derived(expanded ? available : available.slice(0, initialLimit));
 	const national = $derived(selection.mode === 'place' && selection.prefectureId == null);
 	const nameHead = $derived(selection.mode === 'specialty' ? 'Νομός' : 'Ειδικότητα');
 	const flagKm = $derived(data.distanceFlagKm);
@@ -78,12 +81,12 @@
 		return '';
 	}
 	function changeExpanded(next: boolean) {
-		if (next || !compact || selectedKey == null || typeof document === 'undefined') {
+		if (next || selectedKey == null || typeof document === 'undefined') {
 			onExpandedChange(next);
 			return;
 		}
-		const allKeys = [...document.querySelectorAll<HTMLElement>(`#${CSS.escape(listId)} .row[data-key]`)].map((row) => row.dataset.key);
-		const hiddenSelection = allKeys.indexOf(selectedKey) >= 8;
+		const selectedIndex = available.findIndex((row) => row.key === selectedKey);
+		const hiddenSelection = selectedIndex >= initialLimit;
 		onExpandedChange(next);
 		if (hiddenSelection) {
 			onSelect(null);
@@ -118,6 +121,57 @@
 	});
 </script>
 
+{#snippet coverageRow(r: (typeof rows)[number])}
+	{@const off = dateOffset(r.earliestDate)}
+	{@const open = selectedKey === r.key}
+	<li class:open>
+		<button type="button" class="row" data-key={r.key} class:sel={open} class:none={r.count === 0} aria-expanded={open} aria-controls={open ? detailId(r.key) : undefined} onclick={() => onSelect(open ? null : r.key)}>
+			<span class="c-name"><span class="name">{r.name}</span>{#if r.sub}<span class="sub">{r.sub}</span>{/if}</span>
+			<span class="c-mix mix" title={mixTitle(r.counts)} aria-label={mixTitle(r.counts)}>{#each SECTORS as sector (sector)}<span class="smark {sector}" class:off={!selection.sectors.includes(sector) || r.counts[sector] === 0}></span>{/each}</span>
+			<span class="c-count num">
+				<span class="desktop-count"><span class="sr-only">Σημεία:</span> {#if r.count === 0}<span class="zero">0</span>{:else}{fmtInt(r.count)}{/if}{#if national && r.prefsWith != null}<span class="sub">σε {r.prefsWith}/{prefTotal}</span>{/if}</span>
+				<span class="mobile-count">{fmtInt(r.count)} {r.count === 1 ? 'σημείο' : 'σημεία'}{#if national && r.prefsWith != null}&nbsp;<span class="sub" aria-hidden="true">· Νομοί: {fmtInt(r.prefsWith)}</span><span class="sr-only">Κάλυψη σε {fmtInt(r.prefsWith)} νομούς</span>{/if}</span>
+			</span>
+			<span class="c-per100k num"><span class="sr-only">Ανά 100 χιλ. κατοίκους:</span> {#if r.count === 0}<span class="zero">{EMPTY}</span>{:else}{fmtPer100k(r.per100k)}{/if}</span>
+			<span class="c-earliestDate num"><span class="sr-only">Πρώτο ραντεβού:</span>
+				{#if compact}<span class="compact-date">{fmtWaitCompact(r.earliestDate, data.scan.at)}</span>{:else}<span class="full-date">{#if r.earliestDate}<span>{fmtDay(r.earliestDate)}</span><span class="sub">{fmtOffset(off)}</span>{:else}<span class="zero">{EMPTY}</span>{/if}</span>{/if}
+			</span>
+			{#if !compact}<span class="c-nearestKm num" class:national-distance={national}><span class="sr-only">{national ? `Έδρες πάνω από ${flagKm} χλμ:` : 'Πλησιέστερο από την έδρα:'}</span>
+				{#if national}{#if (r.prefsFlagged ?? 0) > 0}<span class="flag">{r.prefsFlagged} {r.prefsFlagged === 1 ? 'έδρα' : 'έδρες'}</span><span class="sub">έως {fmtKm(r.nearestKm)}</span>{:else if r.nearestUnknown}<span class="unknown hatch">άγνωστο</span>{:else}<span class="ok">καμία</span>{/if}
+				{:else if r.count > 0}<span class="ok">εντός</span>{#if r.nearestKm != null && r.nearestKm > 0}<span class="sub">{fmtKm(r.nearestKm)} από την έδρα</span>{/if}
+				{:else if r.nearestUnknown}<span class="unknown hatch">άγνωστο</span>{:else}<span class:flag={r.flagged}>{fmtKm(r.nearestKm)}</span>{/if}
+			</span>{/if}
+			{#if compact && (sort === 'per100k' || sort === 'nearestKm')}<span class="mobile-metric">{mobileMetric(r)}</span>{/if}
+		</button>
+
+		{#if open && detail}
+			<div id={detailId(r.key)} class="detail">
+				{#if detail.providers.length === 0}
+					<p class="dsum">Δεν καταγράφεται σημείο{selection.sectors.length < SECTORS.length ? ' στους επιλεγμένους φορείς' : ''}.</p>
+					{#if detail.nearest}
+						{#if detail.nearest.unknown || !detail.nearest.provider}<p class="dnear"><span class="hatch swatch" aria-hidden="true"></span>Χωρίς μέτρηση: κανένα σημείο με θέση στους επιλεγμένους φορείς.</p>
+						{:else}<p class="dnear"><span class="dlabel">Πλησιέστερο:</span><b>{providerName(detail.nearest.provider)}</b><span class="muted">{titleCase(detail.nearest.provider.city)}{detail.nearestPref ? `, ${prefLabel(detail.nearestPref)}` : ''}</span><span class="km" class:flag={detail.nearest.km != null && detail.nearest.km > flagKm}>{fmtKm(detail.nearest.km)}</span><span class="muted">Από την έδρα του νομού, σε ευθεία.</span></p>{/if}
+					{/if}
+					{#if detail.nearby.length}
+						<section class="group alt"><h4>Άλλα κοντινά σημεία</h4>
+							<ul>{#each detail.nearby as { provider, km } (provider.id)}{@const date = providerDate(provider, detail.spec?.id ?? 0)}<li><span class="pname">{providerName(provider)}</span><span class="ptown">{titleCase(provider.city)}{provider.prefectureId != null ? `, ${prefLabel(idx.prefById.get(provider.prefectureId))}` : ''} · <span class="km" class:flag={km > flagKm}>{fmtKm(km)}</span></span><span class="pdate">{#if compact}<span class="compact-date">{fmtWaitCompact(date, data.scan.at)}</span>{:else}<span class="full-date">{date ? fmtDay(date) : EMPTY}</span>{/if}</span></li>{/each}</ul>
+						</section>
+					{/if}
+				{:else}
+					<p class="dsum">{plural(detail.providers.length, 'σημείο', 'σημεία')}{detail.pref ? ` στον ${detail.pref.genitive}` : ' σε όλη την Ελλάδα'} · ημερομηνίες από τη σάρωση της {fmtDay(data.scan.at)}.</p>
+					<div class="groups">
+						{#each detail.groups as group (group.sector)}
+							<section class="group"><h4><span class="smark {group.sector}" aria-hidden="true"></span>{SECTOR_LABEL[group.sector]} <span class="n">{group.total}</span></h4>
+								<ul>{#each group.items as provider (provider.id)}<li><span class="pname">{providerName(provider)}</span><span class="ptown">{titleCase(provider.city)}{!detail.pref && provider.prefectureId != null ? `, ${prefLabel(idx.prefById.get(provider.prefectureId))}` : ''}{provider.lat == null ? ' · χωρίς θέση' : provider.approx ? ' · θέση περίπου' : ''}</span><span class="pdate">{#if compact}<span class="compact-date">{fmtWaitCompact(providerDate(provider, detail.spec?.id ?? 0), data.scan.at)}</span>{:else}<span class="full-date">{providerDate(provider, detail.spec?.id ?? 0) ? fmtDay(providerDate(provider, detail.spec?.id ?? 0)) : EMPTY}</span>{/if}</span></li>{/each}</ul>
+								{#if group.total > group.items.length}<p class="more-sites">και {group.total - group.items.length} ακόμη</p>{/if}</section>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/if}
+	</li>
+{/snippet}
+
 <section id="atlas-list" class="coverage-list" aria-labelledby={`${uid}-list-title`}>
 	<header class="list-head">
 		<div>
@@ -151,62 +205,25 @@
 		{#if rows.length === 0}<p class="empty">Διάλεξε ειδικότητα για να δεις τους νομούς.</p>{/if}
 		<ol id={listId} class="rows">
 			{#each shown as r (r.key)}
-				{@const off = dateOffset(r.earliestDate)}
-				{@const open = selectedKey === r.key}
-				<li class:open>
-					<button type="button" class="row" data-key={r.key} class:sel={open} class:none={r.count === 0} aria-expanded={open} aria-controls={open ? detailId(r.key) : undefined} onclick={() => onSelect(open ? null : r.key)}>
-						<span class="c-name"><span class="name">{r.name}</span>{#if r.sub}<span class="sub">{r.sub}</span>{/if}</span>
-						<span class="c-mix mix" title={mixTitle(r.counts)} aria-label={mixTitle(r.counts)}>{#each SECTORS as sector (sector)}<span class="smark {sector}" class:off={!selection.sectors.includes(sector) || r.counts[sector] === 0}></span>{/each}</span>
-						<span class="c-count num">
-							<span class="desktop-count"><span class="sr-only">Σημεία:</span> {#if r.count === 0}<span class="zero">0</span>{:else}{fmtInt(r.count)}{/if}{#if national && r.prefsWith != null}<span class="sub">σε {r.prefsWith}/{prefTotal}</span>{/if}</span>
-							<span class="mobile-count">{fmtInt(r.count)} {r.count === 1 ? 'σημείο' : 'σημεία'}{#if national && r.prefsWith != null}&nbsp;<span class="sub" aria-hidden="true">· Νομοί: {fmtInt(r.prefsWith)}</span><span class="sr-only">Κάλυψη σε {fmtInt(r.prefsWith)} νομούς</span>{/if}</span>
-						</span>
-						<span class="c-per100k num"><span class="sr-only">Ανά 100 χιλ. κατοίκους:</span> {#if r.count === 0}<span class="zero">{EMPTY}</span>{:else}{fmtPer100k(r.per100k)}{/if}</span>
-						<span class="c-earliestDate num"><span class="sr-only">Πρώτο ραντεβού:</span>
-							{#if compact}<span class="compact-date">{fmtWaitCompact(r.earliestDate, data.scan.at)}</span>{:else}<span class="full-date">{#if r.earliestDate}<span>{fmtDay(r.earliestDate)}</span><span class="sub">{fmtOffset(off)}</span>{:else}<span class="zero">{EMPTY}</span>{/if}</span>{/if}
-						</span>
-						{#if !compact}<span class="c-nearestKm num" class:national-distance={national}><span class="sr-only">{national ? `Έδρες πάνω από ${flagKm} χλμ:` : 'Πλησιέστερο από την έδρα:'}</span>
-							{#if national}{#if (r.prefsFlagged ?? 0) > 0}<span class="flag">{r.prefsFlagged} {r.prefsFlagged === 1 ? 'έδρα' : 'έδρες'}</span><span class="sub">έως {fmtKm(r.nearestKm)}</span>{:else if r.nearestUnknown}<span class="unknown hatch">άγνωστο</span>{:else}<span class="ok">καμία</span>{/if}
-							{:else if r.count > 0}<span class="ok">εντός</span>{#if r.nearestKm != null && r.nearestKm > 0}<span class="sub">{fmtKm(r.nearestKm)} από την έδρα</span>{/if}
-							{:else if r.nearestUnknown}<span class="unknown hatch">άγνωστο</span>{:else}<span class:flag={r.flagged}>{fmtKm(r.nearestKm)}</span>{/if}
-						</span>{/if}
-						{#if compact && (sort === 'per100k' || sort === 'nearestKm')}<span class="mobile-metric">{mobileMetric(r)}</span>{/if}
-					</button>
-
-					{#if open && detail}
-						<div id={detailId(r.key)} class="detail">
-							{#if detail.providers.length === 0}
-								<p class="dsum">Δεν καταγράφεται σημείο{selection.sectors.length < SECTORS.length ? ' στους επιλεγμένους φορείς' : ''}.</p>
-								{#if detail.nearest}
-									{#if detail.nearest.unknown || !detail.nearest.provider}<p class="dnear"><span class="hatch swatch" aria-hidden="true"></span>Χωρίς μέτρηση: κανένα σημείο με θέση στους επιλεγμένους φορείς.</p>
-									{:else}<p class="dnear"><span class="dlabel">Πλησιέστερο:</span><b>{providerName(detail.nearest.provider)}</b><span class="muted">{titleCase(detail.nearest.provider.city)}{detail.nearestPref ? `, ${prefLabel(detail.nearestPref)}` : ''}</span><span class="km" class:flag={detail.nearest.km != null && detail.nearest.km > flagKm}>{fmtKm(detail.nearest.km)}</span><span class="muted">Από την έδρα του νομού, σε ευθεία.</span></p>{/if}
-								{/if}
-								{#if detail.nearby.length}
-									<section class="group alt"><h4>Άλλα κοντινά σημεία</h4>
-										<ul>{#each detail.nearby as { provider, km } (provider.id)}{@const date = providerDate(provider, detail.spec?.id ?? 0)}<li><span class="pname">{providerName(provider)}</span><span class="ptown">{titleCase(provider.city)}{provider.prefectureId != null ? `, ${prefLabel(idx.prefById.get(provider.prefectureId))}` : ''} · <span class="km" class:flag={km > flagKm}>{fmtKm(km)}</span></span><span class="pdate">{#if compact}<span class="compact-date">{fmtWaitCompact(date, data.scan.at)}</span>{:else}<span class="full-date">{date ? fmtDay(date) : EMPTY}</span>{/if}</span></li>{/each}</ul>
-									</section>
-								{/if}
-							{:else}
-								<p class="dsum">{plural(detail.providers.length, 'σημείο', 'σημεία')}{detail.pref ? ` στον ${detail.pref.genitive}` : ' σε όλη την Ελλάδα'} · ημερομηνίες από τη σάρωση της {fmtDay(data.scan.at)}.</p>
-								<div class="groups">
-									{#each detail.groups as group (group.sector)}
-										<section class="group"><h4><span class="smark {group.sector}" aria-hidden="true"></span>{SECTOR_LABEL[group.sector]} <span class="n">{group.total}</span></h4>
-											<ul>{#each group.items as provider (provider.id)}<li><span class="pname">{providerName(provider)}</span><span class="ptown">{titleCase(provider.city)}{!detail.pref && provider.prefectureId != null ? `, ${prefLabel(idx.prefById.get(provider.prefectureId))}` : ''}{provider.lat == null ? ' · χωρίς θέση' : provider.approx ? ' · θέση περίπου' : ''}</span><span class="pdate">{#if compact}<span class="compact-date">{fmtWaitCompact(providerDate(provider, detail.spec?.id ?? 0), data.scan.at)}</span>{:else}<span class="full-date">{providerDate(provider, detail.spec?.id ?? 0) ? fmtDay(providerDate(provider, detail.spec?.id ?? 0)) : EMPTY}</span>{/if}</span></li>{/each}</ul>
-											{#if group.total > group.items.length}<p class="more-sites">και {group.total - group.items.length} ακόμη</p>{/if}</section>
-									{/each}
-								</div>
-							{/if}
-						</div>
-					{/if}
-				</li>
+				{@render coverageRow(r)}
 			{/each}
 		</ol>
 	</div>
 
+	{#if missing.length > 0}
+		<details class="missing" open={missing.some((r) => r.key === selectedKey)}>
+			<summary>Ειδικότητες χωρίς σημεία <span class="muted">({missing.length})</span></summary>
+			<ol class="rows">
+				{#each missing as r (r.key)}
+					{@render coverageRow(r)}
+				{/each}
+			</ol>
+		</details>
+	{/if}
 	{#if cell != null && onShowAll && cellPref}
 		<button type="button" class="expand" onclick={onShowAll}>Όλες οι ειδικότητες στον {prefLabel(cellPref)}</button>
 	{/if}
-	{#if compact && rows.length > 8}
+	{#if available.length > initialLimit}
 		<button type="button" class="expand" aria-expanded={expanded} aria-controls={listId} onclick={() => changeExpanded(!expanded)}>{expanded ? 'Λιγότερες' : 'Περισσότερες'}</button>
 	{/if}
 </section>
@@ -243,6 +260,8 @@
 	.ok { color: var(--ink-3); font-size: 0.86rem; }
 	.flag { color: var(--urgent); font-weight: 600; }
 	.unknown { display: inline-block; padding: 0 5px; color: var(--ink-2); font-size: 0.78rem; border-radius: 3px; }
+	.missing { border: 1px solid var(--line-2); border-radius: var(--r-ctl); }
+	.missing summary { min-height: 44px; padding: 0.7rem 0.85rem; color: var(--ink-2); font-size: 0.84rem; font-weight: 600; cursor: pointer; }
 	.empty { margin: 1rem 0.5rem; color: var(--ink-3); }
 	.expand { justify-self: start; min-height: 44px; padding: 0 0.85rem; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); color: var(--ink-2); font: inherit; font-size: 0.84rem; font-weight: 600; cursor: pointer; }
 	.detail { margin: 0; padding: 0.2rem 0.5rem 0.9rem 1.1rem; border-left: 2px solid var(--accent); font-size: 0.86rem; min-width: 0; }

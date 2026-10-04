@@ -117,7 +117,9 @@ aligned figures: sites, per 100k, missing count, farthest seat (brick when over 
 and, when present, a «χωρίς μέτρηση» count.
 
 **CoverageList** `{ data, selection, sort, onSort, selectedKey, onSelect }`. One row per
-specialty (place mode) or per prefecture (specialty mode), six columns: name (+ seat), the
+specialty (place mode) or per prefecture (specialty mode). Initially shows five rows on mobile
+and ten on desktop, with a button to expand the rest. In place mode, specialties with zero
+points are folded into a separate dropdown; a selected single specialty stays visible. Six columns: name (+ seat), the
 four-slot sector mark, count, per 100k, soonest date («Τρί 29 Σεπ +3 ημ.»), nearest km. In the
 national view the count column adds «σε N/51» and the distance column becomes the number of
 seats over the threshold. Header buttons call `onSort` and expose `aria-sort`. **Rows expand in
