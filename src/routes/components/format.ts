@@ -730,6 +730,21 @@ export function toCsv(rows: readonly (readonly CsvValue[])[]): string {
 	return '﻿' + rows.map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
 }
 
+const PIN_STATUS_ORDER: Record<PinIssue['status'], number> = { open: 0, unverified: 1, fixed: 2 };
+
+/** The public /pin-issues.csv: open first, then by prefecture and name. Public units only. */
+export function pinIssuesCsv(report: Pick<AtlasReport, 'pinIssues' | 'prefectures'>): string {
+	const pref = new Map(report.prefectures.map((p) => [p.id, p.name]));
+	const rows = report.pinIssues
+		.filter((i) => i.sector === 'esy' || i.sector === 'pfy')
+		.map((i) => ({ ...i, prefecture: i.prefectureId == null ? '' : (pref.get(i.prefectureId) ?? '') }))
+		.sort((a, b) => PIN_STATUS_ORDER[a.status] - PIN_STATUS_ORDER[b.status] || a.prefecture.localeCompare(b.prefecture, 'el') || a.name.localeCompare(b.name, 'el'));
+	return toCsv([
+		['providerId', 'name', 'city', 'prefecture', 'sector', 'reason', 'status', 'firstSeen', 'lastSeen', 'fixedSeen', 'daysOpen'],
+		...rows.map((i) => [i.providerId, i.name, i.city, i.prefecture, i.sector, i.reason, i.status, i.firstSeen, i.lastSeen, i.fixedSeen, i.daysOpen])
+	]);
+}
+
 // ---------- waits: distribution of days to the first free appointment ----------
 
 export interface WaitStats {

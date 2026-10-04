@@ -38,7 +38,8 @@ import {
 	sortRows,
 	specialtiesCovered,
 	titleCase,
-	toCsv
+	toCsv,
+	pinIssuesCsv
 } from './format';
 import SelectionBar from './SelectionBar.svelte';
 import AtlasNav from './AtlasNav.svelte';
@@ -375,6 +376,24 @@ describe('weekly helpers', () => {
 		const csv = toCsv([['Νομός', 'Σημεία'], ['Έβρος, Ν.', 3], ['A"b', null]]);
 		expect(csv.startsWith('﻿')).toBe(true);
 		expect(csv).toBe('﻿Νομός,Σημεία\r\n"Έβρος, Ν.",3\r\n"A""b",\r\n');
+	});
+	it('pin-issues CSV: public units only, open first, quoted names', () => {
+		// The fixture itself carries an ΕΟΠΥΥ doctor in pinIssues: it must never reach the file.
+		expect(pinIssuesCsv(report)).not.toContain(report.pinIssues.find((i) => i.sector === 'eopyy')!.providerId);
+		const base = { ...report.pinIssues[0], sector: 'pfy' as const };
+		const issues = [
+			{ ...base, providerId: 'f', name: 'Κ.Υ. Α', status: 'fixed' as const },
+			{ ...base, providerId: 'o', name: 'Γ.Ν. "Άγιος", Κύμη', status: 'open' as const },
+			{ ...base, providerId: 'x', name: 'Ιδιώτης', sector: 'private' as const, status: 'open' as const },
+			{ ...base, providerId: 'e', name: 'Συμβεβλημένος', sector: 'eopyy' as const, status: 'open' as const }
+		];
+		const csv = pinIssuesCsv({ ...report, pinIssues: issues });
+		const lines = csv.slice(1).trimEnd().split('\r\n');
+		expect(csv.startsWith('﻿providerId,name,city,prefecture,')).toBe(true);
+		expect(lines).toHaveLength(3);
+		expect(lines[1]).toContain('o,"Γ.Ν. ""Άγιος"", Κύμη",');
+		expect(lines[2].startsWith('f,')).toBe(true);
+		expect(csv).not.toMatch(/Ιδιώτης|Συμβεβλημένος/);
 	});
 	it('the boundaries file has all 51 prefectures of the fixture', () => {
 		expect(boundaries.features.length).toBe(51);

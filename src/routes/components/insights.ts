@@ -105,7 +105,7 @@ export function insights(data: AtlasData): Insight[] {
 	if (sites > 0) {
 		out.push({
 			id: 'private-share',
-			text: `${pct(priv, sites)} των σημείων με ηλεκτρονικό ραντεβού είναι ιδιώτες ή συμβεβλημένοι με τον ΕΟΠΥΥ· μόνο ${pct(sites - priv, sites)} είναι δημόσιες δομές.`,
+			text: `${pct(priv, sites)} των σημείων με ηλεκτρονικό ραντεβού είναι ιδιώτες ή συμβεβλημένοι με τον ΕΟΠΥΥ και ${pct(sites - priv, sites)} δημόσιες δομές. Ένα νοσοκομείο ή κέντρο υγείας μετράει ως ένα σημείο, όσους ιατρούς κι αν έχει, οπότε το ποσοστό μετράει σημεία, όχι ιατρούς ή δυναμικότητα.`,
 			selection: { mode: 'place', prefectureId: null, specialtyId: null, sectors: [...SECTORS] },
 			evidenceKey: null,
 			metric: 'coverage',
