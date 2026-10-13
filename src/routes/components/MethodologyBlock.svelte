@@ -12,7 +12,10 @@
 	const complete = $derived(scans.filter((s) => s.complete).length);
 	const time = $derived(report.scan.at.slice(11, 16));
 	// The longest wait the scan saw: the catalogue's own search window is at least this long.
-	const longest = $derived(Math.max(0, ...report.providers.flatMap((p) => Object.values(p.firstDates ?? {}).map((d) => daysFromScan(d, report.scan.at) ?? 0))));
+	const longest = $derived.by(() => {
+		const days = report.providers.flatMap((p) => Object.values(p.firstDates ?? {}).map((d) => daysFromScan(d, report.scan.at))).filter((d): d is number => d != null && d >= 0);
+		return days.length ? Math.max(...days) : null;
+	});
 	const provisional = $derived(provisionalPinIds(report).size);
 </script>
 
@@ -36,11 +39,11 @@
 			<ul class="cases">
 				<li><span class="strong">Καμία μονάδα στον κατάλογο.</span> Για τον νομό και την ειδικότητα ο κατάλογος δεν επέστρεψε κανένα σημείο. Μετράει 0.</li>
 				<li><span class="strong">Κανένα ελεύθερο ραντεβού.</span> Το σημείο υπάρχει, αλλά η αναζήτηση του καταλόγου δεν βρήκε ελεύθερη ημέρα. Μετράει στα σημεία, όχι στην αναμονή («με ημερομηνία» στο γράφημα).</li>
-				<li><span class="strong">Αποτυχημένος έλεγχος.</span> Ο κατάλογος δεν απάντησε για το σημείο. Μένει έξω από την αναμονή και δεν μετράει ως έλλειψη. Μια σάρωση με σφάλματα σημειώνεται ελλιπής και δεν συγκρίνεται.</li>
+				<li><span class="strong">Αποτυχημένος έλεγχος.</span> Ο κατάλογος δεν απάντησε για το σημείο. Το σημείο μετράει, αλλά μένει έξω από την αναμονή και δεν μετράει ως έλλειψη. Αν δεν απαντήσει η αναζήτηση μιας ολόκληρης ειδικότητας, η σάρωση σημειώνεται ελλιπής και δεν συγκρίνεται.</li>
 			</ul>
 			<p>
-				Το πόσο μπροστά ψάχνει ο κατάλογος το ορίζει ο ίδιος, όχι εμείς. Η μακρύτερη αναμονή που βρήκε αυτή η
-				σάρωση είναι <span class="num">{fmtInt(longest)}</span> ημέρες.
+				Το πόσο μπροστά ψάχνει ο κατάλογος το ορίζει ο ίδιος, όχι εμείς.{#if longest != null}{' '}Η μακρύτερη αναμονή που
+				βρήκε αυτή η σάρωση είναι <span class="num">{fmtInt(longest)}</span> ημέρες.{/if}
 			</p>
 		</section>
 
@@ -49,7 +52,7 @@
 			<p>
 				Ο κατάλογος ηλεκτρονικών ραντεβού του Υπουργείου Υγείας ({report.scan.source}). Κάθε εβδομάδα
 				σαρώνουμε ολόκληρο τον κατάλογο. Η σελίδα δείχνει τη σάρωση της
-				<span class="strong">{fmtDateLong(report.scan.at)}</span>{#if time}{" "}(ξεκίνησε στις <span class="num">{time}</span>){/if}. Οι ημερομηνίες ραντεβού είναι στιγμιότυπα
+				<span class="strong">{fmtDateLong(report.scan.at)}</span>{#if time}{" "}(ολοκληρώθηκε στις <span class="num">{time}</span>){/if}. Οι ημερομηνίες ραντεβού είναι στιγμιότυπα
 				εκείνης της ημέρας, όχι σημερινή διαθεσιμότητα.
 			</p>
 			{#if scans.length > 0}
@@ -135,8 +138,8 @@
 				(απόκλιση λίγων χιλιομέτρων). Εξαιρούνται μόνο όταν δεν ξέρουμε ούτε την πόλη.
 			</p>
 			<p>
-				Σε αυτή τη σάρωση <span class="num">{fmtInt(provisional)}</span> καταχωρίσεις έχουν ακόμη λάθος ή
-				ανεπιβεβαίωτη θέση. Οι αποστάσεις προς αυτές είναι προσωρινές και η σύνοψη το γράφει δίπλα στον αριθμό.
+				Σε αυτή τη σάρωση <span class="num">{fmtInt(provisional)}</span> καταχωρίσεις έχουν ακόμη λάθος θέση.
+				Οι αποστάσεις προς αυτές είναι προσωρινές και η σύνοψη το γράφει δίπλα στον αριθμό.
 			</p>
 			<p><a href="/pin-issues.csv" download>Μονάδες με λάθος θέση στον κατάλογο (CSV)</a></p>
 		</section>

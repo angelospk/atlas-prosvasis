@@ -1048,19 +1048,27 @@ describe('honest claims (2026-10-13)', () => {
 		expect(html).toContain('Καμία μονάδα στον κατάλογο');
 		expect(html).toContain('Κανένα ελεύθερο ραντεβού');
 		expect(html).toContain('Αποτυχημένος έλεγχος');
-		expect(html).toContain('04:42');
+		expect(html).toMatch(/ολοκληρώθηκε στις <span class="num[^"]*">04:42<\/span>/);
+		expect(html).not.toContain('σφάλματα σημειώνεται ελλιπής');
 		expect(html).toContain('νησιά');
-		const provisional = report.pinIssues.filter((i) => i.status !== 'fixed').length;
+		const current = new Set(report.providers.map((p) => p.id));
+		const provisional = report.pinIssues.filter((i) => i.status === 'open' && current.has(i.providerId)).length;
 		expect(html).toContain(`>${provisional}</span> καταχωρίσεις`);
 		expect(html).toContain('προσωρινές');
 		expect(html).toContain(`href="${FEEDBACK_FORM}"`);
 		expect(html).not.toContain('θηκόγραμμα');
+		const undated = { ...at, providers: at.providers.map((p) => ({ ...p, firstDates: {} })) };
+		expect(render(MethodologyBlock, { props: { report: undated } }).body).not.toContain('Η μακρύτερη αναμονή');
 		expect(html).not.toContain('—');
 	});
 	it('a distance to a site whose Ministry pin is still wrong is marked provisional', () => {
 		const ids = provisionalPinIds(report);
-		expect(ids.has(report.pinIssues.find((i) => i.status === 'open')!.providerId)).toBe(true);
+		const present = new Set(report.providers.map((p) => p.id));
+		expect(ids.has(report.pinIssues.find((i) => i.status === 'open' && present.has(i.providerId))!.providerId)).toBe(true);
 		expect(ids.has(report.pinIssues.find((i) => i.status === 'fixed')!.providerId)).toBe(false);
+		expect(ids.has(report.pinIssues.find((i) => i.status === 'unverified')!.providerId)).toBe(false);
+		const gone = { ...report.pinIssues[0], providerId: 'not-in-catalogue', status: 'open' as const };
+		expect(provisionalPinIds({ ...report, pinIssues: [gone] }).size).toBe(0);
 		const empty = report.cells.find((c) => SECTORS.every((s) => c.counts[s] === 0) && c.nearestProviderId && c.nearestKm != null)!;
 		expect(empty).toBeTruthy();
 		const issue = { ...report.pinIssues[0], providerId: empty.nearestProviderId!, status: 'open' as const };
@@ -1069,5 +1077,13 @@ describe('honest claims (2026-10-13)', () => {
 		expect(marked).toContain('προσωρινή απόσταση');
 		const clean = render(MetricSummary, { props: { data: { ...report, pinIssues: [] }, selection } }).body;
 		expect(clean).not.toContain('προσωρινή απόσταση');
+		// Specialty mode: «Μακρύτερη έδρα» and the list of far seats say it too.
+		const bySpec: Selection = { ...all, mode: 'specialty', specialtyId: empty.specialtyId };
+		const far = deriveRows(data, idx, bySpec).filter((r) => r.count === 0 && r.nearestKm != null).sort((a, b) => b.nearestKm! - a.nearestKm!)[0];
+		const farCell = report.cells.find((c) => cellKey(c.prefectureId, c.specialtyId) === far.key)!;
+		const farIssue = { ...issue, providerId: nearestFor(idx, farCell, SECTORS).provider!.id };
+		const spec = render(MetricSummary, { props: { data: { ...report, pinIssues: [farIssue] }, selection: bySpec } }).body;
+		expect(spec).toContain('προσωρινή απόσταση');
+		expect(render(MetricSummary, { props: { data: { ...report, pinIssues: [] }, selection: bySpec } }).body).not.toContain('προσωρινή απόσταση');
 	});
 });

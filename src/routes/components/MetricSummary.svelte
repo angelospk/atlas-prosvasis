@@ -45,12 +45,16 @@
 	const total = $derived(sites.length);
 	// A prefecture and a specialty together: that one row.
 	const cellRow = $derived(pref && spec ? (rows.find((r) => r.key === `${pref.id}:${spec.id}`) ?? null) : null);
-	// The nearest site's Ministry pin is still wrong: the distance uses its town centre.
-	const provisional = $derived.by(() => {
-		const cell = pref && spec ? data.cells.find((c) => c.prefectureId === pref.id && c.specialtyId === spec.id) : null;
-		const id = cell ? nearestFor(idx, cell, selection.sectors).provider?.id : null;
-		return id != null && provisionalPinIds(data).has(id);
-	});
+	// A row whose nearest site's Ministry pin is still wrong: the distance uses its town centre.
+	const pinned = $derived(provisionalPinIds(data));
+	const cellByKey = $derived(new Map(data.cells.map((c) => [`${c.prefectureId}:${c.specialtyId}`, c])));
+	const isProvisional = (r: Row | null | undefined) => {
+		const cell = r ? cellByKey.get(r.key) : undefined;
+		const id = cell ? nearestFor(idx, cell, selection.sectors).provider?.id : undefined;
+		return id != null && pinned.has(id);
+	};
+	const PROVISIONAL = 'προσωρινή απόσταση';
+	const provisional = $derived(isProvisional(pref && spec ? (rows.find((r) => r.key === `${pref.id}:${spec.id}`) ?? null) : null));
 	const bySector = $derived(SECTORS.filter((s) => selection.sectors.includes(s)).map((s) => ({ s, n: sites.filter((p) => p.sector === s).length })));
 	const without = $derived(rows.filter((r) => r.count === 0));
 	const withProvider = $derived(rows.length - without.length);
@@ -58,7 +62,9 @@
 	const flagged = $derived(flaggedRows.length);
 	const unknownRows = $derived(rows.filter((r) => r.count === 0 && r.nearestUnknown && !nowhere(r)));
 	const unknown = $derived(unknownRows.length);
-	const farthest = $derived(rows.reduce<number | null>((m, r) => (r.count === 0 && r.nearestKm != null && (m == null || r.nearestKm > m) ? r.nearestKm : m), null));
+	const farthestRow = $derived(rows.reduce<Row | null>((m, r) => (r.count === 0 && r.nearestKm != null && (m == null || r.nearestKm > m.nearestKm!) ? r : m), null));
+	const farthest = $derived(farthestRow?.nearestKm ?? null);
+	const farthestText = $derived(`${fmtKm(farthest)}${isProvisional(farthestRow) ? ` (${PROVISIONAL})` : ''}`);
 	const population = $derived(pref ? pref.population : idx.population);
 	const per100k = $derived(population > 0 ? (total / population) * 100_000 : null);
 
@@ -90,10 +96,11 @@
 			: (k && onPickSpecialty ? () => onPickSpecialty!(k.specialtyId) : null);
 		return { key: r.key, name: r.name, note, pick };
 	};
-	const nearNote = (r: Row) => (nowhere(r) ? 'πουθενά στην Ελλάδα' : r.nearestUnknown ? 'χωρίς μέτρηση' : `πλησιέστερο ${fmtKm(r.nearestKm)}`);
+	const kmNote = (r: Row) => `${fmtKm(r.nearestKm)}${isProvisional(r) ? `, ${PROVISIONAL}` : ''}`;
+	const nearNote = (r: Row) => (nowhere(r) ? 'πουθενά στην Ελλάδα' : r.nearestUnknown ? 'χωρίς μέτρηση' : `πλησιέστερο ${kmNote(r)}`);
 	const entries = $derived.by((): Entry[] => {
 		if (open === 'without') return without.map((r) => entry(r, nearNote(r)));
-		if (open === 'flagged') return flaggedRows.map((r) => entry(r, fmtKm(r.nearestKm)));
+		if (open === 'flagged') return flaggedRows.map((r) => entry(r, kmNote(r)));
 		if (open === 'unknown') return unknownRows.map((r) => entry(r, 'κανένα σημείο με θέση'));
 		if (open === 'half') return halfRows.map((r) => entry(r, `${r.prefsWith}/${data.prefectures.length} νομοί`));
 		if (open === 'far') return farRows.map((r) => entry(r, plural(r.prefsFlagged ?? 0, 'έδρα', 'έδρες')));
@@ -138,7 +145,7 @@
 				{@render fig('sites', 'Σημεία παροχής', fmtInt(total))}
 				<div><dt>Ανά 100 χιλ. κατοίκους</dt><dd class="num">{fmtPer100k(per100k)}</dd></div>
 				{#if without.length}{@render fig('without', 'Νομοί χωρίς πάροχο', fmtInt(without.length))}{:else}<div><dt>Νομοί χωρίς πάροχο</dt><dd class="num">0</dd></div>{/if}
-				{#if flagged}{@render fig('flagged', 'Μακρύτερη έδρα', fmtKm(farthest), 'flag')}{:else}<div><dt>Μακρύτερη έδρα</dt><dd class="num">{fmtKm(farthest)}</dd></div>{/if}
+				{#if flagged}{@render fig('flagged', 'Μακρύτερη έδρα', farthestText, 'flag')}{:else}<div><dt>Μακρύτερη έδρα</dt><dd class="num">{farthestText}</dd></div>{/if}
 				{#if unknown > 0}{@render fig('unknown', 'Χωρίς μέτρηση', fmtInt(unknown), 'unknown')}{/if}
 			</dl>
 		{:else}
@@ -150,7 +157,7 @@
 			{#if total > 0}
 				<b class="num">{plural(total, 'σημείο', 'σημεία')}</b> παροχής στον κατάλογο.
 			{:else if cellRow?.nearestKm != null}
-				κανένα σημείο στον κατάλογο · το πλησιέστερο είναι <span class="num" class:flag={cellRow.flagged}>{fmtKm(cellRow.nearestKm)}</span> από την έδρα ({pref.seat.label}), σε ευθεία{#if provisional} (προσωρινή απόσταση: λάθος θέση στον κατάλογο){/if}.
+				κανένα σημείο στον κατάλογο · το πλησιέστερο είναι <span class="num" class:flag={cellRow.flagged}>{fmtKm(cellRow.nearestKm)}</span> από την έδρα ({pref.seat.label}), σε ευθεία{#if provisional} ({PROVISIONAL}: λάθος θέση στον κατάλογο){/if}.
 			{:else}
 				κανένα σημείο στον κατάλογο.
 			{/if}
@@ -158,7 +165,7 @@
 		<dl class="figures">
 			{#if total > 0}{@render fig('sites', 'Σημεία παροχής', fmtInt(total))}{:else}<div><dt>Σημεία παροχής</dt><dd class="num">0</dd></div>{/if}
 			<div><dt>Ανά 100 χιλ. κατοίκους</dt><dd class="num">{fmtPer100k(per100k)}</dd></div>
-			<div><dt>Πλησιέστερο από την έδρα</dt><dd class="num" class:flag={cellRow?.flagged}>{cellRow?.nearestKm == null ? EMPTY : fmtKm(cellRow.nearestKm)}{#if provisional && cellRow?.nearestKm != null} <small>προσωρινή απόσταση</small>{/if}</dd></div>
+			<div><dt>Πλησιέστερο από την έδρα</dt><dd class="num" class:flag={cellRow?.flagged}>{cellRow?.nearestKm == null ? EMPTY : fmtKm(cellRow.nearestKm)}{#if provisional && cellRow?.nearestKm != null} <small>{PROVISIONAL}</small>{/if}</dd></div>
 			<div><dt>Πρώτο ραντεβού</dt><dd class="num">{#if cellRow?.earliestDate}{fmtDay(cellRow.earliestDate)} <small>{fmtOffset(daysFromScan(cellRow.earliestDate, data.scan.at))}</small>{:else}{EMPTY}{/if}</dd></div>
 		</dl>
 	{:else if pref}

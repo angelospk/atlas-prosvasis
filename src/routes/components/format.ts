@@ -745,10 +745,11 @@ export function pinIssuesCsv(report: Pick<AtlasReport, 'pinIssues' | 'prefecture
 	]);
 }
 
-/** Sites whose Ministry pin is still wrong (open) or never confirmed (unverified): a distance
- * to them rests on a town-centre stand-in, so it is provisional. */
-export function provisionalPinIds(report: Partial<Pick<AtlasReport, 'pinIssues'>>): Set<string> {
-	return new Set((report.pinIssues ?? []).filter((i) => i.status !== 'fixed').map((i) => i.providerId));
+/** Current sites whose Ministry pin is still wrong (open): a distance to them rests on a
+ * town-centre stand-in, so it is provisional. Fixed and vanished (unverified) records do not count. */
+export function provisionalPinIds(report: Pick<AtlasData, 'providers'> & Partial<Pick<AtlasReport, 'pinIssues'>>): Set<string> {
+	const current = new Set(report.providers.map((p) => p.id));
+	return new Set((report.pinIssues ?? []).filter((i) => i.status === 'open' && current.has(i.providerId)).map((i) => i.providerId));
 }
 
 // ---------- waits: distribution of days to the first free appointment ----------
