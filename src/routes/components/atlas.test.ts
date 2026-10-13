@@ -39,7 +39,8 @@ import {
 	specialtiesCovered,
 	titleCase,
 	toCsv,
-	pinIssuesCsv
+	pinIssuesCsv,
+	provisionalPinIds
 } from './format';
 import SelectionBar from './SelectionBar.svelte';
 import AtlasNav from './AtlasNav.svelte';
@@ -1028,5 +1029,45 @@ describe('prefecture and specialty together', () => {
 			const html = render(MetricSummary, { props: { data, selection } }).body;
 			expect(html).toContain(`aria-label="Σημεία παροχής: ${uniqueSites(data, selection).length}"`);
 		}
+	});
+});
+
+describe('honest claims (2026-10-13)', () => {
+	it('a wait row says, before the tap, that its name opens the map and changes the filters', () => {
+		const html = render(WaitDistribution, { props: { data, selection: all, onShowOnMap: () => {} } }).body;
+		expect(html).toContain('Πάτησε ένα όνομα: ανοίγει στον χάρτη και αλλάζει τα φίλτρα. Πάτησε μια τελεία: πόλεις και σημεία.');
+		expect(html).toMatch(/class="to-map[^"]*"[^>]*aria-label="[^"]+: δες στον χάρτη, αλλάζει τα φίλτρα"/);
+		expect(html).toMatch(/<span class="go[^"]*" aria-hidden="true">↗<\/span>/);
+	});
+	it('methodology says what is measured, the three empty states, the window, islands, provisional pins and how to correct', () => {
+		const at = { ...report, scan: { ...report.scan, at: '2026-10-11T04:42:20' } };
+		const html = render(MethodologyBlock, { props: { report: at } }).body;
+		expect(html).toContain('Τι μετράει ο άτλας');
+		expect(html).toContain('διαθεσιμότητα μέσω ηλεκτρονικού ραντεβού');
+		expect(html).toContain('δεν σημαίνει ότι λείπει η ιατρική φροντίδα');
+		expect(html).toContain('Καμία μονάδα στον κατάλογο');
+		expect(html).toContain('Κανένα ελεύθερο ραντεβού');
+		expect(html).toContain('Αποτυχημένος έλεγχος');
+		expect(html).toContain('04:42');
+		expect(html).toContain('νησιά');
+		const provisional = report.pinIssues.filter((i) => i.status !== 'fixed').length;
+		expect(html).toContain(`>${provisional}</span> καταχωρίσεις`);
+		expect(html).toContain('προσωρινές');
+		expect(html).toContain(`href="${FEEDBACK_FORM}"`);
+		expect(html).not.toContain('θηκόγραμμα');
+		expect(html).not.toContain('—');
+	});
+	it('a distance to a site whose Ministry pin is still wrong is marked provisional', () => {
+		const ids = provisionalPinIds(report);
+		expect(ids.has(report.pinIssues.find((i) => i.status === 'open')!.providerId)).toBe(true);
+		expect(ids.has(report.pinIssues.find((i) => i.status === 'fixed')!.providerId)).toBe(false);
+		const empty = report.cells.find((c) => SECTORS.every((s) => c.counts[s] === 0) && c.nearestProviderId && c.nearestKm != null)!;
+		expect(empty).toBeTruthy();
+		const issue = { ...report.pinIssues[0], providerId: empty.nearestProviderId!, status: 'open' as const };
+		const selection: Selection = { ...all, prefectureId: empty.prefectureId, specialtyId: empty.specialtyId };
+		const marked = render(MetricSummary, { props: { data: { ...report, pinIssues: [issue] }, selection } }).body;
+		expect(marked).toContain('προσωρινή απόσταση');
+		const clean = render(MetricSummary, { props: { data: { ...report, pinIssues: [] }, selection } }).body;
+		expect(clean).not.toContain('προσωρινή απόσταση');
 	});
 });

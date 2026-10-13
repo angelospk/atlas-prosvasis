@@ -4,9 +4,9 @@
 	// and sit next to each other so none of them reads as "the score". A figure that stands for
 	// a set (specialties without a site, seats beyond the threshold…) opens it underneath; each
 	// entry then selects its specialty or prefecture.
-	import type { AtlasData, Selection } from '$lib/atlas/types';
+	import type { AtlasData, AtlasReport, Selection } from '$lib/atlas/types';
 	import { SECTORS, SECTOR_LABEL } from '$lib/atlas/types';
-	import { buildIndex, daysFromScan, deriveRows, EMPTY, isAllSectors, sectorsLabel, fmtDay, fmtInt, fmtKm, fmtOffset, fmtPer100k, parseKey, plural, prefLabel, providersIn, SECTOR_SHORT, titleCase, uniqueSites, type Row } from './format';
+	import { buildIndex, daysFromScan, deriveRows, EMPTY, isAllSectors, sectorsLabel, fmtDay, fmtInt, fmtKm, fmtOffset, fmtPer100k, nearestFor, parseKey, plural, provisionalPinIds, prefLabel, providersIn, SECTOR_SHORT, titleCase, uniqueSites, type Row } from './format';
 
 	let {
 		data,
@@ -16,7 +16,8 @@
 		onShowSites = null,
 		request = $bindable(null)
 	}: {
-		data: AtlasData;
+		/** The report's pinIssues, when present, mark distances to wrongly pinned sites provisional. */
+		data: AtlasData & Partial<Pick<AtlasReport, 'pinIssues'>>;
 		selection: Selection;
 		onPickSpecialty?: ((id: number) => void) | null;
 		onPickPrefecture?: ((id: number) => void) | null;
@@ -44,6 +45,12 @@
 	const total = $derived(sites.length);
 	// A prefecture and a specialty together: that one row.
 	const cellRow = $derived(pref && spec ? (rows.find((r) => r.key === `${pref.id}:${spec.id}`) ?? null) : null);
+	// The nearest site's Ministry pin is still wrong: the distance uses its town centre.
+	const provisional = $derived.by(() => {
+		const cell = pref && spec ? data.cells.find((c) => c.prefectureId === pref.id && c.specialtyId === spec.id) : null;
+		const id = cell ? nearestFor(idx, cell, selection.sectors).provider?.id : null;
+		return id != null && provisionalPinIds(data).has(id);
+	});
 	const bySector = $derived(SECTORS.filter((s) => selection.sectors.includes(s)).map((s) => ({ s, n: sites.filter((p) => p.sector === s).length })));
 	const without = $derived(rows.filter((r) => r.count === 0));
 	const withProvider = $derived(rows.length - without.length);
@@ -143,7 +150,7 @@
 			{#if total > 0}
 				<b class="num">{plural(total, 'σημείο', 'σημεία')}</b> παροχής στον κατάλογο.
 			{:else if cellRow?.nearestKm != null}
-				κανένα σημείο στον κατάλογο · το πλησιέστερο είναι <span class="num" class:flag={cellRow.flagged}>{fmtKm(cellRow.nearestKm)}</span> από την έδρα ({pref.seat.label}), σε ευθεία.
+				κανένα σημείο στον κατάλογο · το πλησιέστερο είναι <span class="num" class:flag={cellRow.flagged}>{fmtKm(cellRow.nearestKm)}</span> από την έδρα ({pref.seat.label}), σε ευθεία{#if provisional} (προσωρινή απόσταση: λάθος θέση στον κατάλογο){/if}.
 			{:else}
 				κανένα σημείο στον κατάλογο.
 			{/if}
@@ -151,7 +158,7 @@
 		<dl class="figures">
 			{#if total > 0}{@render fig('sites', 'Σημεία παροχής', fmtInt(total))}{:else}<div><dt>Σημεία παροχής</dt><dd class="num">0</dd></div>{/if}
 			<div><dt>Ανά 100 χιλ. κατοίκους</dt><dd class="num">{fmtPer100k(per100k)}</dd></div>
-			<div><dt>Πλησιέστερο από την έδρα</dt><dd class="num" class:flag={cellRow?.flagged}>{cellRow?.nearestKm == null ? EMPTY : fmtKm(cellRow.nearestKm)}</dd></div>
+			<div><dt>Πλησιέστερο από την έδρα</dt><dd class="num" class:flag={cellRow?.flagged}>{cellRow?.nearestKm == null ? EMPTY : fmtKm(cellRow.nearestKm)}{#if provisional && cellRow?.nearestKm != null} <small>προσωρινή απόσταση</small>{/if}</dd></div>
 			<div><dt>Πρώτο ραντεβού</dt><dd class="num">{#if cellRow?.earliestDate}{fmtDay(cellRow.earliestDate)} <small>{fmtOffset(daysFromScan(cellRow.earliestDate, data.scan.at))}</small>{:else}{EMPTY}{/if}</dd></div>
 		</dl>
 	{:else if pref}

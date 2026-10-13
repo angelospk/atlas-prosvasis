@@ -7,7 +7,7 @@
 	// A ranked range plot: one line per row on a shared day axis. The bar runs from the first to
 	// the last date, each dot is one day (coloured with the map's wait classes), the dark tick is
 	// the mean. A dot shows its towns and units on hover, focus or tap. A row's name opens it
-	// on the prefecture map.
+	// on the prefecture map and changes the filters; a hint above the chart says so before the tap.
 	// `order`/`dir` are bindable so a page can keep them in its link; `onSortChange` says when the reader changed them.
 	let { data, selection, onShowOnMap = (_key: string | null) => {}, onPickSpecialty = (_id: number | null) => {}, specialtyPicker = true, order = $bindable('mean'), dir = $bindable('desc'), onSortChange = () => {} }: {
 		data: AtlasData; selection: Selection; onShowOnMap?: (key: string | null) => void; onPickSpecialty?: (id: number | null) => void; specialtyPicker?: boolean;
@@ -78,6 +78,7 @@
 			{#each WAIT_FILL as fill, c (c)}<span><i style:background={fill}></i>{WAIT_LABEL[c]}</span>{/each}
 			<span><i class="tick"></i>μέσος όρος</span>
 		</div>
+		<p class="hint">Πάτησε ένα όνομα: ανοίγει στον χάρτη και αλλάζει τα φίλτρα. Πάτησε μια τελεία: πόλεις και σημεία.</p>
 		<div class="chart">
 			<div class="axis" aria-hidden="true">
 				<span></span>
@@ -87,7 +88,7 @@
 			<ol class="list">
 				{#each shown as row (row.key)}
 					<li class="row" data-key={row.key}>
-						<div class="name"><h3><button type="button" class="to-map" title="Δες στον χάρτη" aria-label={`${row.name}: δες στον χάρτη`} onclick={() => onShowOnMap(row.key)}>{row.name}</button></h3><span class="meta"><span class="mix" role="img" title={mixTitle(row.counts)} aria-label={mixTitle(row.counts)}>{#each SECTORS as sector (sector)}<span class="smark {sector}" class:off={!selection.sectors.includes(sector) || row.counts[sector] === 0}></span>{/each}</span>{row.stats.n}/{row.sites} με ημερομηνία</span></div>
+						<div class="name"><h3><button type="button" class="to-map" title="Δες στον χάρτη (αλλάζει τα φίλτρα)" aria-label={`${row.name}: δες στον χάρτη, αλλάζει τα φίλτρα`} onclick={() => onShowOnMap(row.key)}>{row.name}<span class="go" aria-hidden="true">↗</span></button></h3><span class="meta"><span class="mix" role="img" title={mixTitle(row.counts)} aria-label={mixTitle(row.counts)}>{#each SECTORS as sector (sector)}<span class="smark {sector}" class:off={!selection.sectors.includes(sector) || row.counts[sector] === 0}></span>{/each}</span>{row.stats.n}/{row.sites} με ημερομηνία</span></div>
 						<div class="plot" style:height={`${row.lanes * LANE + 16}px`} bind:clientWidth={plotWidth}>
 							<div class="grid" aria-hidden="true">{#each axis.ticks as t (t)}<i style:left={pct(t)}></i>{/each}</div>
 							<span class="range" aria-hidden="true" style:left={pct(row.stats.min)} style:width={`${(row.stats.max - row.stats.min) / axis.max * 100}%`}></span>
@@ -177,7 +178,8 @@
 	.row { display:grid; grid-template-columns:var(--cols); gap:1.2rem; align-items:center; padding:.35rem 0; border-bottom:1px solid var(--paper-2); }
 	.row:last-child { border-bottom:0; }
 	.name { display:flex; flex-direction:column; min-width:0; } .name h3 { font:600 .9rem var(--sans); overflow-wrap:anywhere; } .meta { display:flex; align-items:center; gap:.4rem; font-size:.7rem; color:var(--ink-3); } .mix { display:inline-flex; gap:2px; }
-	.to-map { padding:.2rem 0; min-height:24px; background:none; border:0; font:inherit; color:inherit; text-align:left; cursor:pointer; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px; } .to-map:hover { text-decoration-color:var(--accent); }
+	.to-map { padding:.2rem 0; min-height:24px; background:none; border:0; font:inherit; color:inherit; text-align:left; cursor:pointer; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px; } .to-map:hover { text-decoration-color:var(--accent); } .go { margin-left:.25rem; font-size:.8em; color:var(--accent); text-decoration:none; display:inline-block; }
+	.hint { margin:-.4rem 0 0; font-size:.78rem; color:var(--ink-3); }
 	.plot { position:relative; min-width:0; margin-inline:10px; }
 	.grid i { position:absolute; top:0; bottom:0; width:1px; background:var(--paper-2); }
 	.range { position:absolute; top:calc(16px + 10px); height:4px; min-width:4px; transform:translateX(-2px); border-radius:2px; background:#b9cbd6; }
