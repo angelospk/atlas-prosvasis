@@ -22,7 +22,8 @@
 		onPick,
 		placeholder = '',
 		compact = false,
-		inline = false
+		inline = false,
+		clearable = false
 	}: {
 		/** Unique per page: used for the listbox id and option ids. */
 		id: string;
@@ -35,6 +36,8 @@
 		compact?: boolean;
 		/** One-line control for the navigation bar: the label is kept for screen readers only. */
 		inline?: boolean;
+		/** A × beside a chosen value: picks null («all»). */
+		clearable?: boolean;
 	} = $props();
 
 	const listId = $derived(`${id}-list`);
@@ -107,9 +110,10 @@
 	}
 </script>
 
-<label class="field" class:compact class:inline bind:this={root}>
-	<span class="flabel">{label}</span>
+<div class="field" class:compact class:inline class:clearable={clearable && value != null && !open} bind:this={root}>
+	<label class="flabel" for={`${id}-input`}>{label}</label>
 	<input
+		id={`${id}-input`}
 		type="text"
 		role="combobox"
 		autocomplete="off"
@@ -126,6 +130,9 @@
 		onkeydown={onKey}
 		onblur={onBlur}
 	/>
+	{#if clearable && value != null && !open}
+		<button type="button" class="clear" aria-label={`Καθαρισμός: ${label}`} title="Καθαρισμός" onclick={() => onPick(null)}><span aria-hidden="true">×</span></button>
+	{/if}
 	{#if open}
 		<!-- tabindex -1: a scrolling list is otherwise a Tab stop in Chrome; focus stays on the input. -->
 		<ul class="list" id={listId} role="listbox" tabindex="-1" aria-label={label}>
@@ -149,7 +156,7 @@
 			{/each}
 		</ul>
 	{/if}
-</label>
+</div>
 
 <style>
 	.field {
@@ -157,6 +164,35 @@
 		display: grid;
 		gap: 0.3rem;
 		min-width: 0;
+	}
+	.clear {
+		position: absolute;
+		right: 3px;
+		bottom: 3px;
+		width: 32px;
+		height: 32px;
+		display: grid;
+		place-items: center;
+		padding: 0;
+		border: 0;
+		border-radius: calc(var(--r-ctl) - 2px);
+		background: none;
+		color: var(--ink-3);
+		font-size: 1.15rem;
+		line-height: 1;
+		cursor: pointer;
+	}
+	.clear:hover {
+		background: var(--paper-2);
+		color: var(--ink);
+	}
+	.clear:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 1px;
+	}
+	/* Two classes: wins over the later `.inline input` padding. */
+	.field.clearable input {
+		padding-right: 36px;
 	}
 	.flabel {
 		font-size: 0.8rem;

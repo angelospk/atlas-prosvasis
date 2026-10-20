@@ -9,18 +9,21 @@
 	import 'leaflet.markercluster/dist/MarkerCluster.css';
 	import type { AtlasData, Provider, Selection } from '$lib/atlas/types';
 	import { SECTORS } from '$lib/atlas/types';
-	import { buildIndex, notBookableNow, offeredIds, providerName, cellKey, fmtKm, nearestFor, parseKey, prefLabel, providersIn, SECTOR_SHORT, titleCase } from './format';
+	import { buildIndex, mapFrame, notBookableNow, offeredIds, providerName, cellKey, fmtKm, nearestFor, parseKey, prefLabel, providersIn, SECTOR_SHORT, titleCase } from './format';
 
 	let {
 		data,
 		selection,
 		selectedKey,
-		onSelect
+		onSelect,
+		focusSite = null
 	}: {
 		data: AtlasData;
 		selection: Selection;
 		selectedKey: string | null;
 		onSelect: (key: string) => void;
+		/** A site picked in the list: the map flies to it and rings it. `n` repeats a pick of the same site. */
+		focusSite?: { id: string; n: number } | null;
 	} = $props();
 
 	const idx = $derived(buildIndex(data));
@@ -56,7 +59,14 @@
 	let providerLayer: Leaflet.LayerGroup | null = null;
 	let seatLayer: Leaflet.LayerGroup | null = null;
 	let lineLayer: Leaflet.LayerGroup | null = null;
+	let focusLayer: Leaflet.Marker | null = null;
 	let lastFrame = '';
+	// The overview of the selection and the view it gave; `moved` once the reader leaves it.
+	let home: Leaflet.LatLngBounds | null = null;
+	let homeView: { center: Leaflet.LatLng; zoom: number } | null = null;
+	let moved = $state(false);
+	const homeLabel = $derived(selection.mode === 'place' && selection.prefectureId != null ? 'Όλος ο νομός' : 'Όλη η Ελλάδα');
+	const reduced = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 	function iconFor(p: Provider, selected: boolean) {
 		return L!.divIcon({
@@ -153,26 +163,49 @@
 		lineLayer = g.addTo(map);
 	}
 
-	// Frame the view when what we look at changes (not on sector toggles or cell selection).
+	// Frame the view when what we look at changes (not on sector toggles or a row with sites).
 	function frame() {
 		if (!L || !map) return;
-		const far = line?.near?.provider ?? null;
-		const sig = `${selection.mode}|${selection.prefectureId}|${selection.specialtyId}|${far?.id ?? ''}`;
-		if (sig === lastFrame) return;
-		lastFrame = sig;
-		const pts: Leaflet.LatLngTuple[] = [];
-		if (selection.mode === 'place' && selection.prefectureId != null) {
-			const pref = idx.prefById.get(selection.prefectureId);
-			if (pref) pts.push([pref.seat.lat, pref.seat.lon]);
-			for (const p of located) if (p.prefectureId === selection.prefectureId) pts.push([p.lat!, p.lon!]);
-			// A prefecture with none of its own: frame the seat with its nearest site.
-			if (far && pts.length === 1) pts.push([far.lat!, far.lon!]);
-		} else {
-			for (const p of located) pts.push([p.lat!, p.lon!]);
-			for (const pref of data.prefectures) pts.push([pref.seat.lat, pref.seat.lon]);
+		const f = mapFrame(idx, selection, located, selectedKey);
+		// The overview follows every change (a sector toggle too); the view moves only on a new subject.
+		home = f.overview.length ? L.latLngBounds(f.overview).pad(0.12) : null;
+		const sig = `${selection.mode}|${selection.prefectureId}|${selection.specialtyId}|${f.focusId ?? ''}`;
+		if (sig !== lastFrame) {
+			lastFrame = sig;
+			const target = f.focus ? L.latLngBounds(f.focus).pad(0.2) : home;
+			if (target) map.fitBounds(target, { maxZoom: 11, animate: false });
 		}
-		if (pts.length === 0) return;
-		map.fitBounds(L.latLngBounds(pts).pad(0.12), { maxZoom: 11, animate: false });
+		measureHome();
+	}
+	// The view the overview gives at this size, measured without moving the map.
+	function measureHome() {
+		if (!map) return;
+		homeView = home ? { center: home.getCenter(), zoom: Math.min(11, map.getBoundsZoom(home)) } : null;
+		if (homeView) checkMoved();
+		else moved = false;
+	}
+	function checkMoved() {
+		if (!map || !homeView) return;
+		const off = map.latLngToContainerPoint(homeView.center).distanceTo(map.getSize().divideBy(2));
+		moved = Math.abs(map.getZoom() - homeView.zoom) >= 0.5 || off > 40;
+	}
+	function goHome() {
+		if (!map || !home) return;
+		map.fitBounds(home, { maxZoom: 11, animate: !reduced() });
+	}
+
+	// A site picked in the list: fly there and ring it, above any cluster.
+	function showFocus() {
+		if (!L || !map) return;
+		if (focusLayer) map.removeLayer(focusLayer);
+		focusLayer = null;
+		const p = focusSite ? idx.provById.get(focusSite.id) : null;
+		if (!p || p.lat == null || p.lon == null) return;
+		const where = p.prefectureId != null ? prefLabel(idx.prefById.get(p.prefectureId)) : '';
+		focusLayer = L.marker([p.lat, p.lon], { icon: L.divIcon({ className: `atlas-pin ${p.sector} focus`, html: '<span></span>', iconSize: [16, 16], iconAnchor: [8, 8] }), keyboard: false, zIndexOffset: 1000 })
+			.bindTooltip(`${providerName(p)}${where ? ` · ${where}` : ''}${p.approx ? ' · θέση περίπου' : ''}`, { direction: 'top', offset: [0, -9], className: 'atlas-km', permanent: true })
+			.addTo(map);
+		map.flyTo([p.lat, p.lon], Math.max(map.getZoom(), 13), { animate: !reduced(), duration: 0.6 });
 	}
 
 	// Redraw layers when their inputs change; each effect reads only what it needs.
@@ -194,7 +227,14 @@
 		void selection.mode;
 		void selection.prefectureId;
 		void selection.specialtyId;
+		// Read here: frame() returns early until Leaflet has loaded, and would track nothing else.
+		void selectedKey;
+		void located;
 		frame();
+	});
+	$effect(() => {
+		void focusSite;
+		showFocus();
 	});
 
 	onMount(() => {
@@ -215,7 +255,10 @@
 			drawProviders();
 			drawLine();
 			lastFrame = '';
+			map.on('moveend', checkMoved);
+			map.on('resize', measureHome);
 			frame();
+			showFocus();
 			setTimeout(() => map?.invalidateSize(), 0);
 			cleanup = () => {
 				map?.remove();
@@ -230,7 +273,10 @@
 </script>
 
 <figure class="mapwrap">
-	<div class="map" bind:this={mapEl} role="region" aria-label="Χάρτης παρόχων"></div>
+	<div class="stage">
+		<div class="map" bind:this={mapEl} role="region" aria-label="Χάρτης παρόχων"></div>
+		{#if moved}<button type="button" class="home" onclick={goHome}><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M1 4.5V1h3.5M11 4.5V1H7.5M1 7.5V11h3.5M11 7.5V11H7.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>{homeLabel}</button>{/if}
+	</div>
 	<figcaption class="legend">
 		{#each SECTORS as s (s)}
 			<span class="lg" class:dim={!selection.sectors.includes(s)}><span class="smark {s}" aria-hidden="true"></span>{SECTOR_SHORT[s]}</span>
@@ -248,6 +294,38 @@
 		margin: 0;
 		display: grid;
 		gap: 0.45rem;
+	}
+	.stage {
+		position: relative;
+		min-width: 0;
+	}
+	/* Above Leaflet's panes (z-index up to 1000 inside .map, which is its own stacking context). */
+	.home {
+		position: absolute;
+		top: 10px;
+		right: 10px;
+		z-index: 1;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		min-height: 36px;
+		padding: 0 0.75rem;
+		border: 1px solid var(--line-2);
+		border-radius: var(--r-ctl);
+		background: var(--card);
+		color: var(--ink);
+		font: inherit;
+		font-size: 0.82rem;
+		font-weight: 600;
+		box-shadow: var(--shadow);
+		cursor: pointer;
+	}
+	.home:hover {
+		border-color: var(--ink-3);
+	}
+	.home:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
 	}
 	.map {
 		height: 520px;

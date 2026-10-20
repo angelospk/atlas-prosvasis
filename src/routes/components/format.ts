@@ -305,6 +305,30 @@ export function nearestFor(idx: AtlasIndex, cell: CoverageCell, sectors: readonl
 	return { km: Math.round(bestKm * 10) / 10, provider: best, unknown: false };
 }
 
+export type LatLon = [number, number];
+/** What the point map frames. `overview`: the selection (a prefecture's seat and sites, or every
+ *  site and seat), also the target of «back to the whole view». `focus`: for a selected row with
+ *  no site of its own, its seat and the nearest site, so the distance line is in view at once. */
+export function mapFrame(idx: AtlasIndex, selection: Selection, located: readonly Provider[], selectedKey: string | null): { overview: LatLon[]; focus: LatLon[] | null; focusId: string | null } {
+	const k = selectedKey ? parseKey(selectedKey) : null;
+	const cell = k?.prefectureId != null ? idx.cellByKey.get(selectedKey!) : undefined;
+	const pref = k?.prefectureId != null ? idx.prefById.get(k.prefectureId) : undefined;
+	const near = cell && pref && providersIn(idx, pref.id, cell.specialtyId, selection.sectors).length === 0 ? nearestFor(idx, cell, selection.sectors).provider : null;
+	const focus: LatLon[] | null = near && pref && near.lat != null && near.lon != null ? [[pref.seat.lat, pref.seat.lon], [near.lat, near.lon]] : null;
+	const overview: LatLon[] = [];
+	if (selection.mode === 'place' && selection.prefectureId != null) {
+		const own = idx.prefById.get(selection.prefectureId);
+		if (own) overview.push([own.seat.lat, own.seat.lon]);
+		for (const p of located) if (p.prefectureId === selection.prefectureId) overview.push([p.lat!, p.lon!]);
+		// A prefecture with none of its own: the seat with its nearest site.
+		if (focus && overview.length === 1) overview.push(focus[1]);
+	} else {
+		for (const p of located) overview.push([p.lat!, p.lon!]);
+		for (const s of idx.prefById.values()) overview.push([s.seat.lat, s.seat.lon]);
+	}
+	return { overview, focus, focusId: focus ? `${selectedKey}|${near!.id}` : null };
+}
+
 /** For a prefecture without the specialty: the next `n` located sites in `sectors`, nearest to its
  *  seat first (in a straight line), leaving out `skipId` (already shown as «Πλησιέστερο»). */
 export function nearbySites(idx: AtlasIndex, prefectureId: number, specialtyId: number, sectors: readonly Sector[], skipId: string | null, n = 3): { provider: Provider; km: number }[] {

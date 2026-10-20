@@ -9,7 +9,7 @@
 	import KeyFindings from './components/KeyFindings.svelte';
 	import type { Insight } from './components/insights';
 	import './components/atlas.css';
-	import type { AtlasReport, Metric, PrefectureBoundaries, Selection } from '$lib/atlas/types';
+	import type { AtlasReport, Metric, PrefectureBoundaries, Provider, Selection } from '$lib/atlas/types';
 	import { SECTORS } from '$lib/atlas/types';
 	import { calculateActiveSection, SECTION_IDS, SECTION_ORDER, type Section } from './components/navigation';
 	import { parseKey } from './components/format';
@@ -44,6 +44,8 @@
 	let matrixPrefectureId = $state<number | null>(null);
 	let compact = $state(true);
 	let pointMapOpen = $state(false);
+	/** A site picked in the list, shown on the point map; `n` lets the same site be picked again. */
+	let focusSite = $state<{ id: string; n: number } | null>(null);
 	let toolsOpen = $state(false);
 	let activeSection = $state<Section>('map');
 	let barHeight = $state(0);
@@ -101,6 +103,7 @@
 			if (!alive || token !== requestToken) return;
 			selection = candidate;
 			pendingSelection = null;
+			focusSite = null;
 			if (request.mapMetric) mapMetric = request.mapMetric;
 			const pushed = syncUrl(true);
 			coverageExpanded = false;
@@ -150,7 +153,14 @@
 		else if (i.detail === 'sites') requestSelection(next, { focusKey: null, mapKey: null, mapMetric: 'coverage', openSummary: 'sites' });
 		else requestSelection(next, { focusKey: null, mapKey: null, section: 'list' });
 	}
-	function pickPrefecture(prefectureId: number) { requestSelection({ ...selection, prefectureId }); }
+	function pickPrefecture(prefectureId: number | null) { requestSelection({ ...selection, prefectureId }); }
+	// A site in the list: ring it on the point map. On a phone the map sits below the list.
+	function showSite(p: Provider) {
+		focusSite = { id: p.id, n: (focusSite?.n ?? 0) + 1 };
+		if (!compact) return;
+		pointMapOpen = true;
+		void tick().then(focusPointMap);
+	}
 	function pickSpecialty(specialtyId: number | null) { requestSelection({ ...selection, specialtyId }); }
 	// On the map a second tap on the chosen prefecture goes back to all of Greece.
 	function togglePrefecture(prefectureId: number) { requestSelection({ ...selection, prefectureId: selection.prefectureId === prefectureId ? null : prefectureId }); }
@@ -202,7 +212,7 @@
   ++requestToken;
   pendingSelection = null; updating = false;
   const state = readAtlasUrl(new URL(window.location.href), data);
-  selection = state.selection; mapMetric = state.metric; selectedKey = focusKey(selection);
+  selection = state.selection; mapMetric = state.metric; selectedKey = focusKey(selection); focusSite = null;
   waitSort = readWaitSort(new URL(window.location.href));
   coverageExpanded = selectedKey != null;
   const hash = window.location.hash.slice(1);
@@ -314,7 +324,7 @@
 
 			<div class="explorer">
 				<div class="pane list">
-					<CoverageList data={data} selection={selection} {sort} onSort={changeSort} {selectedKey} onSelect={toggleCoverage} {compact} expanded={coverageExpanded} onExpandedChange={(next) => (coverageExpanded = next)} onShowAll={() => pickSpecialty(null)} /><ShareWidget widget="list" {selection} />
+					<CoverageList data={data} selection={selection} {sort} onSort={changeSort} {selectedKey} onSelect={toggleCoverage} {compact} expanded={coverageExpanded} onExpandedChange={(next) => (coverageExpanded = next)} onShowAll={() => pickSpecialty(null)} onSite={showSite} /><ShareWidget widget="list" {selection} />
 				</div>
 				<div class="pane map">
 					<div class="point-map-controls">
@@ -323,7 +333,7 @@
 					{#if !compact || pointMapOpen}
 						<section id="atlas-point-map" class="point-map-panel" aria-labelledby="atlas-point-map-heading">
 							<h2 id="atlas-point-map-heading" tabindex="-1" bind:this={pointHeading}>Χάρτης σημείων</h2>
-							<AccessMap data={data} selection={selection} {selectedKey} onSelect={openCell} /><ShareWidget widget="points" {selection} />
+							<AccessMap data={data} selection={selection} {selectedKey} onSelect={openCell} {focusSite} /><ShareWidget widget="points" {selection} />
 						</section>
 					{/if}
 				</div>
@@ -356,7 +366,7 @@
 	.results[aria-busy='true'] { opacity: 0.72; }
 	.mapblock, .pair, .explorer { display: grid; gap: 1.5rem; align-items: start; min-width: 0; }
 	.point-map-panel { display: grid; gap: 0.65rem; min-width: 0; scroll-margin-top: calc(var(--atlas-bar-height, 0px) + 12px); }
-	.point-map-panel h2 { font-size: clamp(1.35rem, 3vw, 1.8rem); }
+	.point-map-panel h2 { font-size: clamp(1.35rem, 3vw, 1.8rem); scroll-margin-top: calc(var(--atlas-bar-height, 0px) + 12px); }
 	.point-map-controls { min-width: 0; }
 	.point-map-controls button { min-height: 44px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); color: var(--ink-2); padding: 0 0.8rem; font: inherit; font-size: 0.84rem; font-weight: 600; cursor: pointer; }
 	.more { border-top: 1px solid var(--line); padding-top: 1rem; display: grid; gap: 2rem; min-width: 0; scroll-margin-top: calc(var(--atlas-bar-height, 0px) + 12px); }

@@ -199,6 +199,12 @@
 .atlas-pin.sel > span {
 	box-shadow: 0 0 0 1.5px #ffffff, 0 0 0 3.5px #24638e;
 }
+/* A site picked in the list: larger, with a gold ring. */
+.atlas-pin.focus > span {
+	width: 16px;
+	height: 16px;
+	box-shadow: 0 0 0 2px #ffffff, 0 0 0 5px #d99a1e;
+}
 
 .atlas-cluster {
 	background: none;

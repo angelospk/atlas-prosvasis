@@ -188,29 +188,21 @@
 		return isZero(id) ? 1 : 0.6;
 	}
 
-	// ---- interaction: hover / focus tooltip, click = select ----
+	// ---- interaction: hover / focus card, click = select ----
+	// The card stays in one corner over the sea and only its content changes: a card that
+	// followed the pointer jumped to the corner and back on every border crossing.
 	let active = $state<number | null>(null); // hovered or focused
-	let pointer = $state<{ x: number; y: number } | null>(null); // relative to the frame
-	let frame = $state<HTMLElement | null>(null);
 	let svgEl: SVGSVGElement | null = null;
 
-	function move(e: PointerEvent) {
-		if (!frame) return;
-		const r = frame.getBoundingClientRect();
-		pointer = { x: e.clientX - r.left, y: e.clientY - r.top };
-	}
 	function enter(id: number, e: PointerEvent) {
 		if (e.pointerType === 'touch') return;
 		active = id;
-		move(e);
 	}
 	function leave() {
 		active = null;
-		pointer = null;
 	}
 	function focusIn(id: number) {
 		active = id;
-		pointer = null;
 	}
 	function keyPick(id: number, e: KeyboardEvent) {
 		if (e.key === 'Enter' || e.key === ' ') {
@@ -236,14 +228,6 @@
 	const sortedPrefs = $derived([...data.prefectures].sort((a, b) => a.name.localeCompare(b.name, 'el')));
 	const sortedSpecs = $derived([...data.specialties].sort((a, b) => titleCase(a.name).localeCompare(titleCase(b.name), 'el')));
 
-	// Tooltip placement: below-right of the pointer, flipped when it would leave the frame.
-	const tipStyle = $derived.by(() => {
-		if (!pointer || !frame) return '';
-		const w = frame.clientWidth;
-		const left = pointer.x + 14 + 260 > w ? Math.max(0, pointer.x - 274) : pointer.x + 14;
-		const top = pointer.y + 12;
-		return `left:${left}px;top:${top}px`;
-	});
 
 	// ---- exports ----
 	function sectorCols(): Sector[] {
@@ -379,7 +363,7 @@
   {/each}
  </div>
 
-	<div class="frame" bind:this={frame}>
+	<div class="frame">
 		<svg
 			bind:this={svgEl}
 			xmlns="http://www.w3.org/2000/svg"
@@ -413,7 +397,6 @@
 					aria-label={info ? describe(info) : s.name}
 					aria-pressed={selection.prefectureId === s.id}
 					onpointerenter={(e) => enter(s.id, e)}
-					onpointermove={move}
 					onpointerleave={leave}
 					onfocus={() => focusIn(s.id)}
 					onblur={leave}
@@ -425,7 +408,7 @@
 		</svg>
 
 		{#if activeInfo}
-			<div class="tip" class:float={pointer != null} style={tipStyle} role="status">
+			<div class="tip" role="status">
 				<b>{prefLabel(idx.prefById.get(activeInfo.id))}</b>
 				<span class="muted">{rateMode && spec ? `${titleCase(spec.name)} · ` : ''}{sectorsLabel(selection.sectors)}</span>
 				{@render figures(activeInfo)}
@@ -551,9 +534,6 @@
 		pointer-events: none;
 		display: grid;
 		gap: 0.15rem;
-	}
-	.tip.float {
-		bottom: auto;
 	}
 	.tip b {
 		font-size: 0.98rem;
@@ -683,8 +663,7 @@
 	}
 	@media (max-width: 719px) {
 		/* No hover on phones: the tapped prefecture's figures sit under the map. */
-		.tip,
-		.tip.float {
+		.tip {
 			position: static;
 			width: auto;
 			max-width: none;

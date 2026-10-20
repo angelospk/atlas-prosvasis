@@ -20,7 +20,8 @@
 		data: AtlasData & Partial<Pick<AtlasReport, 'pinIssues'>>;
 		selection: Selection;
 		onPickSpecialty?: ((id: number) => void) | null;
-		onPickPrefecture?: ((id: number) => void) | null;
+		/** null: back to the whole of Greece. */
+		onPickPrefecture?: ((id: number | null) => void) | null;
 		/** Opens the sites themselves (the point map); without it the panel only counts them. */
 		onShowSites?: (() => void) | null;
 		/** A list to open from outside (a key finding); cleared once opened. */
@@ -204,6 +205,10 @@
 		</dl>
 	{/if}
 
+	{#if pref && onPickPrefecture}
+		<button type="button" class="greece" onclick={() => onPickPrefecture!(null)}>Δες όλη την Ελλάδα{spec ? ` · ${titleCase(spec.name)}` : ''}</button>
+	{/if}
+
 	<div class="panel" id={panelId} hidden={!open}>
 			{#if open === 'sites'}
 				<p class="hint">{plural(sites.length, 'μοναδικό σημείο', 'μοναδικά σημεία')} (ένα σημείο μετριέται μία φορά, όσες ειδικότητες κι αν έχει)</p>
@@ -289,6 +294,9 @@
 	.sectors { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: 0.84rem; color: var(--ink-2); }
 	.sectors li { display: inline-flex; align-items: center; gap: 0.35rem; }
 	.sectors b { color: var(--ink); font-weight: 600; }
+	.greece { justify-self: start; min-height: 40px; padding: 0 0.8rem; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); color: var(--ink-2); font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+	.greece:hover { border-color: var(--ink-3); color: var(--ink); }
+	.greece:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 	.go { justify-self: start; min-height: 40px; padding: 0 0.8rem; border: 1px solid var(--accent); border-radius: var(--r-ctl); background: var(--accent); color: #fff; font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
 	.entries { list-style: none; margin: 0; padding: 0; display: grid; max-height: 16rem; overflow-y: auto; }
 	.entries li + li { border-top: 1px solid var(--paper-2); }

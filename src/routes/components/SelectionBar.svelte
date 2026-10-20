@@ -47,8 +47,8 @@
 
 <div class="pickers" role="group" aria-label="Επιλογή νομού, ειδικότητας και φορέων">
 	<div class="desktop-pickers">
-		<Combobox id={`${uid}-place`} label="Νομός" options={placeOptions} value={selection.prefectureId} onPick={(id) => emit({ prefectureId: id })} placeholder="Νομός ή έδρα" inline />
-		<Combobox id={`${uid}-spec`} label="Ειδικότητα" options={specOptions} value={selection.specialtyId} onPick={(id) => emit({ specialtyId: id })} placeholder="Ειδικότητα" inline />
+		<Combobox id={`${uid}-place`} label="Νομός" options={placeOptions} value={selection.prefectureId} onPick={(id) => emit({ prefectureId: id })} placeholder="Νομός ή έδρα" inline clearable />
+		<Combobox id={`${uid}-spec`} label="Ειδικότητα" options={specOptions} value={selection.specialtyId} onPick={(id) => emit({ specialtyId: id })} placeholder="Ειδικότητα" inline clearable />
 	</div>
 	<div class="native-pickers">
 		<label for={`${uid}-native-place`}><span class="sr-only">Νομός</span>

@@ -40,7 +40,8 @@ import {
 	titleCase,
 	toCsv,
 	pinIssuesCsv,
-	provisionalPinIds
+	provisionalPinIds,
+	mapFrame
 } from './format';
 import SelectionBar from './SelectionBar.svelte';
 import AtlasNav from './AtlasNav.svelte';
@@ -1111,5 +1112,56 @@ describe('offered vs bookable now', () => {
 		const html = render(MethodologyBlock, { props: { report } }).body;
 		expect(html).toContain('τελευταίες 4 εβδομαδιαίες σαρώσεις');
 		expect(html).toContain('ανοιχτό πρόγραμμα');
+	});
+});
+
+describe('map and picker fixes (2026-10-21)', () => {
+	const noop = () => {};
+	const ioannina: Selection = { mode: 'place', prefectureId: 20, specialtyId: null, sectors: [...SECTORS] };
+	it('the nav pickers have a clear button only while something is chosen', () => {
+		const nav = (selection: Selection) => render(AtlasNav, { props: { data, selection, onChange: noop, onReset: noop, activeSection: 'map', onNavigate: noop } }).body;
+		const html = nav({ ...ioannina, specialtyId: 16 });
+		expect(html).toContain('aria-label="Καθαρισμός: Νομός"');
+		expect(html).toContain('aria-label="Καθαρισμός: Ειδικότητα"');
+		const blank = nav(all);
+		expect(blank).not.toContain('Καθαρισμός: Νομός');
+		expect(blank).not.toContain('Καθαρισμός: Ειδικότητα');
+	});
+	it('the summary of a prefecture offers the whole of Greece', () => {
+		expect(render(MetricSummary, { props: { data, selection: ioannina, onPickPrefecture: noop } }).body).toContain('Δες όλη την Ελλάδα');
+		expect(render(MetricSummary, { props: { data, selection: { ...ioannina, specialtyId: 16 }, onPickPrefecture: noop } }).body).toContain('Δες όλη την Ελλάδα');
+		expect(render(MetricSummary, { props: { data, selection: all, onPickPrefecture: noop } }).body).not.toContain('Δες όλη την Ελλάδα');
+	});
+	it('«Περισσότερες» completes the list, so it sits above the specialties without a site', () => {
+		const wide = wideCoverageFixture();
+		const extra = wide.cells.find((c) => c.specialtyId === 100)!;
+		wide.specialties.push({ id: 106, name: 'Ειδικότητα 7' });
+		wide.cells.push({ ...extra, specialtyId: 106, counts: { esy: 0, pfy: 0, eopyy: 0, private: 0 } });
+		const html = render(CoverageList, { props: { data: wide, selection: { ...ioannina, prefectureId: extra.prefectureId }, sort: 'count', onSort: noop, selectedKey: null, onSelect: noop, compact: true } }).body;
+		expect(html).toContain('Περισσότερες');
+		expect(html).toContain('Ειδικότητες χωρίς σημεία');
+		expect(html.indexOf('Περισσότερες')).toBeLessThan(html.indexOf('Ειδικότητες χωρίς σημεία'));
+	});
+	it('a located site in an open row is a button that shows it on the map', () => {
+		const html = render(CoverageList, { props: { data, selection: { ...ioannina, specialtyId: 16 }, sort: 'count', onSort: noop, selectedKey: '20:16', onSelect: noop, onSite: noop } }).body;
+		const located = providersIn(idx, 20, 16, [...SECTORS]).filter((p) => p.lat != null);
+		expect(located.length).toBeGreaterThan(0);
+		expect(html).toContain('<button type="button" class="site');
+		expect(html).toContain('title="Δες το στον χάρτη σημείων"');
+		const none = render(CoverageList, { props: { data, selection: { ...ioannina, specialtyId: 16 }, sort: 'count', onSort: noop, selectedKey: '20:16', onSelect: noop } }).body;
+		expect(none).not.toContain('class="site');
+	});
+	it('a selected row with no site of its own frames its seat and the nearest site', () => {
+		// Αιτωλοακαρνανία × Αναισθησιολόγος: nothing there, the nearest is 153 km away.
+		const sel: Selection = { mode: 'place', prefectureId: 1, specialtyId: null, sectors: [...SECTORS] };
+		const located = data.providers.filter((p) => p.prefectureId === 1 && p.lat != null);
+		const f = mapFrame(idx, sel, located, '1:6');
+		const seat = idx.prefById.get(1)!.seat;
+		const near = nearestFor(idx, idx.cellByKey.get('1:6')!, [...SECTORS]).provider!;
+		expect(f.focus).toEqual([[seat.lat, seat.lon], [near.lat, near.lon]]);
+		expect(f.overview[0]).toEqual([seat.lat, seat.lon]);
+		// A row with sites of its own keeps the overview.
+		expect(mapFrame(idx, sel, located, '1:16').focus).toBeNull();
+		expect(mapFrame(idx, sel, located, null).focus).toBeNull();
 	});
 });

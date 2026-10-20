@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import type { AtlasData, Metric, Provider, Selection } from '$lib/atlas/types';
 	import { SECTORS, SECTOR_LABEL } from '$lib/atlas/types';
 	import {
@@ -36,7 +37,8 @@
 		compact = false,
 		expanded = false,
 		onExpandedChange = (_expanded: boolean) => {},
-		onShowAll = null
+		onShowAll = null,
+		onSite = null
 	}: {
 		data: AtlasData;
 		selection: Selection;
@@ -49,6 +51,8 @@
 		onExpandedChange?: (expanded: boolean) => void;
 		/** With a prefecture and a specialty chosen: drop the specialty, back to all of the prefecture. */
 		onShowAll?: (() => void) | null;
+		/** A located site in an open row: show it on the point map. */
+		onSite?: ((provider: Provider) => void) | null;
 	} = $props();
 
 	const idx = $derived(buildIndex(data));
@@ -80,7 +84,16 @@
 		if (sort === 'nearestKm') return `Μεγαλύτερη απόσταση: ${row.nearestKm == null ? 'Χωρίς στοιχεία' : fmtKm(row.nearestKm)}`;
 		return '';
 	}
-	function changeExpanded(next: boolean) {
+	function changeExpanded(next: boolean, button?: HTMLElement) {
+		// Collapsing removes rows above the button: keep it where it was on screen, or the page
+		// stays at the same height and the list scrolls away under the reader.
+		if (!next && button && typeof window !== 'undefined') {
+			const top = button.getBoundingClientRect().top;
+			void tick().then(() => {
+				const shift = button.getBoundingClientRect().top - top;
+				if (shift) window.scrollBy({ top: shift, behavior: 'instant' });
+			});
+		}
 		if (next || selectedKey == null || typeof document === 'undefined') {
 			onExpandedChange(next);
 			return;
@@ -121,6 +134,10 @@
 	});
 </script>
 
+{#snippet siteName(provider: Provider)}
+	{#if onSite && provider.lat != null && provider.lon != null}<button type="button" class="site" title="Δες το στον χάρτη σημείων" onclick={() => onSite(provider)}><span class="pname">{providerName(provider)}</span><svg class="pin" viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M6 11s3.8-3.6 3.8-6.3a3.8 3.8 0 0 0-7.6 0C2.2 7.4 6 11 6 11z" fill="none" stroke="currentColor" stroke-width="1.3" /><circle cx="6" cy="4.7" r="1.3" fill="currentColor" /></svg></button>{:else}<span class="pname">{providerName(provider)}</span>{/if}
+{/snippet}
+
 {#snippet coverageRow(r: (typeof rows)[number])}
 	{@const off = dateOffset(r.earliestDate)}
 	{@const open = selectedKey === r.key}
@@ -150,11 +167,11 @@
 					<p class="dsum">Δεν καταγράφεται σημείο{selection.sectors.length < SECTORS.length ? ' στους επιλεγμένους φορείς' : ''}.</p>
 					{#if detail.nearest}
 						{#if detail.nearest.unknown || !detail.nearest.provider}<p class="dnear"><span class="hatch swatch" aria-hidden="true"></span>Χωρίς μέτρηση: κανένα σημείο με θέση στους επιλεγμένους φορείς.</p>
-						{:else}<p class="dnear"><span class="dlabel">Πλησιέστερο:</span><b>{providerName(detail.nearest.provider)}</b><span class="muted">{titleCase(detail.nearest.provider.city)}{detail.nearestPref ? `, ${prefLabel(detail.nearestPref)}` : ''}</span><span class="km" class:flag={detail.nearest.km != null && detail.nearest.km > flagKm}>{fmtKm(detail.nearest.km)}</span><span class="muted">Από την έδρα του νομού, σε ευθεία.</span></p>{/if}
+						{:else}<p class="dnear"><span class="dlabel">Πλησιέστερο:</span><b>{@render siteName(detail.nearest.provider)}</b><span class="muted">{titleCase(detail.nearest.provider.city)}{detail.nearestPref ? `, ${prefLabel(detail.nearestPref)}` : ''}</span><span class="km" class:flag={detail.nearest.km != null && detail.nearest.km > flagKm}>{fmtKm(detail.nearest.km)}</span><span class="muted">Από την έδρα του νομού, σε ευθεία.</span></p>{/if}
 					{/if}
 					{#if detail.nearby.length}
 						<section class="group alt"><h4>Άλλα κοντινά σημεία</h4>
-							<ul>{#each detail.nearby as { provider, km } (provider.id)}{@const date = providerDate(provider, detail.spec?.id ?? 0)}<li><span class="pname">{providerName(provider)}</span><span class="ptown">{titleCase(provider.city)}{provider.prefectureId != null ? `, ${prefLabel(idx.prefById.get(provider.prefectureId))}` : ''} · <span class="km" class:flag={km > flagKm}>{fmtKm(km)}</span></span><span class="pdate">{#if compact}<span class="compact-date">{fmtWaitCompact(date, data.scan.at)}</span>{:else}<span class="full-date">{date ? fmtDay(date) : EMPTY}</span>{/if}</span></li>{/each}</ul>
+							<ul>{#each detail.nearby as { provider, km } (provider.id)}{@const date = providerDate(provider, detail.spec?.id ?? 0)}<li>{@render siteName(provider)}<span class="ptown">{titleCase(provider.city)}{provider.prefectureId != null ? `, ${prefLabel(idx.prefById.get(provider.prefectureId))}` : ''} · <span class="km" class:flag={km > flagKm}>{fmtKm(km)}</span></span><span class="pdate">{#if compact}<span class="compact-date">{fmtWaitCompact(date, data.scan.at)}</span>{:else}<span class="full-date">{date ? fmtDay(date) : EMPTY}</span>{/if}</span></li>{/each}</ul>
 						</section>
 					{/if}
 				{:else}
@@ -162,7 +179,7 @@
 					<div class="groups">
 						{#each detail.groups as group (group.sector)}
 							<section class="group"><h4><span class="smark {group.sector}" aria-hidden="true"></span>{SECTOR_LABEL[group.sector]} <span class="n">{group.total}</span></h4>
-								<ul>{#each group.items as provider (provider.id)}<li><span class="pname">{providerName(provider)}</span><span class="ptown">{titleCase(provider.city)}{!detail.pref && provider.prefectureId != null ? `, ${prefLabel(idx.prefById.get(provider.prefectureId))}` : ''}{provider.lat == null ? ' · χωρίς θέση' : provider.approx ? ' · θέση περίπου' : ''}</span><span class="pdate">{#if compact}<span class="compact-date">{fmtWaitCompact(providerDate(provider, detail.spec?.id ?? 0), data.scan.at)}</span>{:else}<span class="full-date">{providerDate(provider, detail.spec?.id ?? 0) ? fmtDay(providerDate(provider, detail.spec?.id ?? 0)) : EMPTY}</span>{/if}</span></li>{/each}</ul>
+								<ul>{#each group.items as provider (provider.id)}<li>{@render siteName(provider)}<span class="ptown">{titleCase(provider.city)}{!detail.pref && provider.prefectureId != null ? `, ${prefLabel(idx.prefById.get(provider.prefectureId))}` : ''}{provider.lat == null ? ' · χωρίς θέση' : provider.approx ? ' · θέση περίπου' : ''}</span><span class="pdate">{#if compact}<span class="compact-date">{fmtWaitCompact(providerDate(provider, detail.spec?.id ?? 0), data.scan.at)}</span>{:else}<span class="full-date">{providerDate(provider, detail.spec?.id ?? 0) ? fmtDay(providerDate(provider, detail.spec?.id ?? 0)) : EMPTY}</span>{/if}</span></li>{/each}</ul>
 								{#if group.total > group.items.length}<p class="more-sites">και {group.total - group.items.length} ακόμη</p>{/if}</section>
 						{/each}
 					</div>
@@ -210,6 +227,9 @@
 		</ol>
 	</div>
 
+	{#if available.length > initialLimit}
+		<button type="button" class="expand" aria-expanded={expanded} aria-controls={listId} onclick={(e) => changeExpanded(!expanded, e.currentTarget)}>{expanded ? 'Λιγότερες' : 'Περισσότερες'}</button>
+	{/if}
 	{#if missing.length > 0}
 		<details class="missing" open={missing.some((r) => r.key === selectedKey)}>
 			<summary>Ειδικότητες χωρίς σημεία <span class="muted">({missing.length})</span></summary>
@@ -222,9 +242,6 @@
 	{/if}
 	{#if cell != null && onShowAll && cellPref}
 		<button type="button" class="expand" onclick={onShowAll}>Όλες οι ειδικότητες στον {prefLabel(cellPref)}</button>
-	{/if}
-	{#if available.length > initialLimit}
-		<button type="button" class="expand" aria-expanded={expanded} aria-controls={listId} onclick={() => changeExpanded(!expanded)}>{expanded ? 'Λιγότερες' : 'Περισσότερες'}</button>
 	{/if}
 </section>
 
@@ -280,6 +297,12 @@
 	.group ul { display: grid; gap: 0.3rem; list-style: none; margin: 0; padding: 0; }
 	.group li { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 0.2rem 0.8rem; align-items: baseline; }
 	.pname { min-width: 0; overflow-wrap: anywhere; font-weight: 500; line-height: 1.3; }
+	.site { justify-self: start; display: inline-flex; align-items: baseline; gap: 0.3rem; min-width: 0; padding: 0; background: none; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+	.site .pname { text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+	.site:hover .pname { text-decoration-color: var(--accent); }
+	.site .pin { flex: none; color: var(--ink-3); align-self: center; }
+	.site:hover .pin { color: var(--accent); }
+	.site:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 	.ptown { min-width: 0; color: var(--ink-2); font-size: 0.8rem; overflow-wrap: anywhere; }
 	.pdate { color: var(--accent-d); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
 	.more-sites { margin: 0.3rem 0 0; color: var(--ink-3); font-size: 0.78rem; }
