@@ -6,7 +6,7 @@
 	import { daysFromScan, fmtDateLong, fmtDayShort, fmtInt, provisionalPinIds } from './format';
 	import { FEEDBACK_FORM, PUBLIC_REPO } from '$lib/atlas/url';
 
-	let { report }: { report: AtlasReport } = $props();
+	let { report, open = $bindable(false) }: { report: AtlasReport; open?: boolean } = $props();
 
 	const scans = $derived([...report.scans].sort((a, b) => a.id.localeCompare(b.id)));
 	const complete = $derived(scans.filter((s) => s.complete).length);
@@ -19,7 +19,7 @@
 	const provisional = $derived(provisionalPinIds(report).size);
 </script>
 
-<details class="method">
+<details id="atlas-method" class="method" bind:open>
 	<summary>
 		<span class="t">Μεθοδολογία</span>
 		<span class="s">

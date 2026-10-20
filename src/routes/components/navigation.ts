@@ -2,12 +2,13 @@ export const SECTION_IDS = {
 	map: 'atlas-map',
 	list: 'atlas-list',
 	waits: 'atlas-waits',
-	details: 'atlas-details'
+	details: 'atlas-details',
+	method: 'atlas-method'
 } as const;
 
 export type Section = keyof typeof SECTION_IDS;
 
-export const SECTION_ORDER: readonly Section[] = ['map', 'list', 'waits', 'details'];
+export const SECTION_ORDER: readonly Section[] = ['map', 'list', 'waits', 'details', 'method'];
 
 export interface SectionStart {
 	section: Section;

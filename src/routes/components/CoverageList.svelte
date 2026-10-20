@@ -135,7 +135,7 @@
 </script>
 
 {#snippet siteName(provider: Provider)}
-	{#if onSite && provider.lat != null && provider.lon != null}<button type="button" class="site" title="Δες το στον χάρτη σημείων" onclick={() => onSite(provider)}><span class="pname">{providerName(provider)}</span><svg class="pin" viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M6 11s3.8-3.6 3.8-6.3a3.8 3.8 0 0 0-7.6 0C2.2 7.4 6 11 6 11z" fill="none" stroke="currentColor" stroke-width="1.3" /><circle cx="6" cy="4.7" r="1.3" fill="currentColor" /></svg></button>{:else}<span class="pname">{providerName(provider)}</span>{/if}
+	{#if onSite && provider.lat != null && provider.lon != null}<button type="button" class="site" title="Δες το στον χάρτη σημείων" onclick={() => onSite(provider)}><span class="pname">{providerName(provider)}</span></button>{:else}<span class="pname">{providerName(provider)}</span>{/if}
 {/snippet}
 
 {#snippet coverageRow(r: (typeof rows)[number])}
@@ -297,11 +297,9 @@
 	.group ul { display: grid; gap: 0.3rem; list-style: none; margin: 0; padding: 0; }
 	.group li { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 0.2rem 0.8rem; align-items: baseline; }
 	.pname { min-width: 0; overflow-wrap: anywhere; font-weight: 500; line-height: 1.3; }
-	.site { justify-self: start; display: inline-flex; align-items: baseline; gap: 0.3rem; min-width: 0; padding: 0; background: none; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+	.site { justify-self: start; display: inline; min-width: 0; min-height: 0; padding: 0; background: none; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 	.site .pname { text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
 	.site:hover .pname { text-decoration-color: var(--accent); }
-	.site .pin { flex: none; color: var(--ink-3); align-self: center; }
-	.site:hover .pin { color: var(--accent); }
 	.site:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 	.ptown { min-width: 0; color: var(--ink-2); font-size: 0.8rem; overflow-wrap: anywhere; }
 	.pdate { color: var(--accent-d); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }

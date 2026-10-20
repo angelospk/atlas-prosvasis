@@ -47,6 +47,7 @@
 	/** A site picked in the list, shown on the point map; `n` lets the same site be picked again. */
 	let focusSite = $state<{ id: string; n: number } | null>(null);
 	let toolsOpen = $state(false);
+	let methodOpen = $state(false);
 	let activeSection = $state<Section>('map');
 	let barHeight = $state(0);
 	let pointHeading = $state<HTMLElement | null>(null);
@@ -201,10 +202,18 @@
  // push = false when the selection change already made its own history entry.
  function navigate(section: Section, push = true) {
   if (section === 'details') toolsOpen = true;
+  if (section === 'method') methodOpen = true;
   activeSection = section;
   scrollLockUntil = Date.now() + 1200;
   syncUrl(push, SECTION_IDS[section]);
-  void tick().then(() => document.getElementById(SECTION_IDS[section])?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
+  void tick().then(() => {
+   const target = document.getElementById(SECTION_IDS[section]);
+   if (!target) return;
+   target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+   // Keyboard focus follows the view, so the next Tab starts in the section.
+   if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+   target.focus({ preventScroll: true });
+  });
  }
  async function restoreUrl() {
   if (!data) return;
@@ -217,6 +226,7 @@
   coverageExpanded = selectedKey != null;
   const hash = window.location.hash.slice(1);
   if (hash === 'atlas-details') toolsOpen = true;
+  if (hash === 'atlas-method') methodOpen = true;
   if (hash === 'atlas-point-map') pointMapOpen = true;
   const section = SECTION_ORDER.find((s) => SECTION_IDS[s] === hash);
   if (section) activeSection = section;
@@ -319,7 +329,7 @@
 
 			<section id="atlas-map" class="mapblock" aria-label="Χάρτης κάλυψης">
 				<div class="choro"><PrefectureChoropleth {data} boundaries={page.boundaries} selection={selection} onSelect={togglePrefecture} metric={mapMetric} onMetric={setMetric} /><ShareWidget widget="coverage" {selection} metric={mapMetric} /></div>
-				<div class="side"><MetricSummary {data} {selection} bind:request={summaryOpen} onPickSpecialty={pickSpecialty} onPickPrefecture={pickPrefecture} onShowSites={showSites} /><ShareWidget widget="summary" {selection} /><PrefectureComparison {data} {selection} /><SelectionChanges report={data} {selection} /></div>
+				<div class="side"><MetricSummary {data} {selection} bind:request={summaryOpen} onPickSpecialty={pickSpecialty} onPickPrefecture={pickPrefecture} onShowSites={showSites} onShowList={() => navigate('list')} /><ShareWidget widget="summary" {selection} /><PrefectureComparison {data} {selection} /><SelectionChanges report={data} {selection} /></div>
 			</section>
 
 			<div class="explorer">
@@ -348,7 +358,7 @@
 				<ScanChangeChart report={data} /><ShareWidget widget="changes" {selection} />
 			</details>
 
-			<MethodologyBlock report={data} /><AtlasFooter />
+			<MethodologyBlock report={data} bind:open={methodOpen} /><AtlasFooter />
 		</div>
 	</main></div>
 {/if}

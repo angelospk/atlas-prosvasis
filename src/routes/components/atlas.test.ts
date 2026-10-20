@@ -483,7 +483,7 @@ describe('responsive atlas contracts', () => {
 	it('section navigation has four ordered anchors and a pure reading-band calculation', () => {
 		const html = render(AtlasNav, { props: { data, selection: sel, onChange: noop, onReset: noop, activeSection: 'waits', onNavigate: noop, updating: false } }).body;
 		const hrefs = [...html.matchAll(/href="(#[^"]+)"/g)].map((m) => m[1]);
-		expect(hrefs).toEqual(['#atlas-map', '#atlas-map', '#atlas-list', '#atlas-waits', '#atlas-details']); // the mark, then the sections
+		expect(hrefs).toEqual(['#atlas-map', '#atlas-map', '#atlas-list', '#atlas-waits', '#atlas-details', '#atlas-method']); // the mark, then the sections
 		expect((html.match(/aria-current="location"/g) ?? []).length).toBe(1);
 		expect(html).not.toContain('Βλέπεις:');
 		expect(calculateActiveSection([
@@ -1163,5 +1163,41 @@ describe('map and picker fixes (2026-10-21)', () => {
 		// A row with sites of its own keeps the overview.
 		expect(mapFrame(idx, sel, located, '1:16').focus).toBeNull();
 		expect(mapFrame(idx, sel, located, null).focus).toBeNull();
+	});
+});
+
+describe('methodology link and summary count (2026-10-21)', () => {
+	const noop = () => {};
+	const ioannina: Selection = { mode: 'place', prefectureId: 20, specialtyId: null, sectors: [...SECTORS] };
+	it('the nav links to the methodology, which has its own id and opens on request', () => {
+		const html = render(AtlasNav, { props: { data, selection: all, onChange: noop, onReset: noop, activeSection: 'method', onNavigate: noop } }).body;
+		expect(html).toMatch(/href="#atlas-method"[^>]*aria-current="location"[^>]*>Μεθοδολογία</);
+		expect(SECTION_IDS.method).toBe('atlas-method');
+		expect(calculateActiveSection([{ section: 'map', top: 0 }], 100, true)).toBe('method');
+		expect(render(MethodologyBlock, { props: { report } }).body).toContain('id="atlas-method"');
+		expect(render(MethodologyBlock, { props: { report, open: true } }).body).toMatch(/<details[^>]*open/);
+	});
+	it('the specialty count of a prefecture links to the coverage list only when it can', () => {
+		const linked = render(MetricSummary, { props: { data, selection: ioannina, onShowList: noop } }).body;
+		expect(linked).toMatch(/<a [^>]*href="#atlas-list"[^>]*>\s*<b class="num[^"]*">\d+ από \d+<\/b>/);
+		const plain = render(MetricSummary, { props: { data, selection: ioannina } }).body;
+		expect(plain).not.toContain('href="#atlas-list"');
+	});
+	it('the thinnest-prefecture finding links its specialty count to the coverage list', () => {
+		const thin = insights(data).find((i) => i.id === 'thinnest')!;
+		expect(thin.link).toMatch(/^\d+ από τις \d+ ειδικότητες$/);
+		expect(thin.text).toContain(thin.link!);
+		expect(thin.detail).toBe('list');
+		const html = render(KeyFindings, { props: { data, onMap: noop, onDetail: noop } }).body;
+		const href = html.match(new RegExp(`<a [^>]*href="([^"]+)"[^>]*>${thin.link}</a>`))?.[1] ?? '';
+		expect(href).toMatch(/#atlas-list$/);
+		const state = readAtlasUrl(new URL(href.replaceAll('&amp;', '&'), 'http://x/'), data);
+		expect(state.selection.prefectureId).toBe(thin.selection.prefectureId);
+		expect([...state.selection.sectors].sort()).toEqual([...thin.selection.sectors!].sort());
+	});
+	it('a site name in the coverage list is a plain link without a pin icon', () => {
+		const list = render(CoverageList, { props: { data, selection: ioannina, sort: 'count' as const, onSort: noop, selectedKey: '20:16', onSelect: noop, compact: false, expanded: true, onExpandedChange: noop, onSite: noop } }).body;
+		expect(list).toContain('class="site');
+		expect(list).not.toContain('class="pin');
 	});
 });

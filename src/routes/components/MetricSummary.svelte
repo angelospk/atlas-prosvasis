@@ -14,6 +14,7 @@
 		onPickSpecialty = null,
 		onPickPrefecture = null,
 		onShowSites = null,
+		onShowList = null,
 		request = $bindable(null)
 	}: {
 		/** The report's pinIssues, when present, mark distances to wrongly pinned sites provisional. */
@@ -24,6 +25,8 @@
 		onPickPrefecture?: ((id: number | null) => void) | null;
 		/** Opens the sites themselves (the point map); without it the panel only counts them. */
 		onShowSites?: (() => void) | null;
+		/** Goes to the coverage list; without it the specialty count is plain text. */
+		onShowList?: (() => void) | null;
 		/** A list to open from outside (a key finding); cleared once opened. */
 		request?: 'sites' | null;
 	} = $props();
@@ -171,7 +174,7 @@
 		</dl>
 	{:else if pref}
 		<p class="lede">
-			Στον <b>{prefLabel(pref)}</b>: <b class="num">{withProvider} από {rows.length}</b> ειδικότητες με πάροχο
+			Στον <b>{prefLabel(pref)}</b>: {#if onShowList}<a class="inline" href="#atlas-list" onclick={(e) => { if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); onShowList(); }}><b class="num">{withProvider} από {rows.length}</b></a>{:else}<b class="num">{withProvider} από {rows.length}</b>{/if} ειδικότητες με πάροχο
 			στον κατάλογο
 			{#if flagged > 0}
 				· για <button type="button" class="inline" aria-label={`${flagged} ειδικότητες πάνω από ${flagKm} χλμ`} aria-expanded={open === 'flagged'} aria-controls={panelId} onclick={() => toggle('flagged')}><b class="num">{flagged}</b></button> ο πλησιέστερος είναι πάνω από <span class="num">{flagKm} χλμ</span>

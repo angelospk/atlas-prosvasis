@@ -112,6 +112,7 @@
 
 <div class="field" class:compact class:inline class:clearable={clearable && value != null && !open} bind:this={root}>
 	<label class="flabel" for={`${id}-input`}>{label}</label>
+	<div class="box">
 	<input
 		id={`${id}-input`}
 		type="text"
@@ -131,8 +132,9 @@
 		onblur={onBlur}
 	/>
 	{#if clearable && value != null && !open}
-		<button type="button" class="clear" aria-label={`Καθαρισμός: ${label}`} title="Καθαρισμός" onclick={() => onPick(null)}><span aria-hidden="true">×</span></button>
+		<button type="button" class="clear" aria-label={`Καθαρισμός: ${label}`} onclick={() => onPick(null)}><span aria-hidden="true">×</span></button>
 	{/if}
+	</div>
 	{#if open}
 		<!-- tabindex -1: a scrolling list is otherwise a Tab stop in Chrome; focus stays on the input. -->
 		<ul class="list" id={listId} role="listbox" tabindex="-1" aria-label={label}>
@@ -167,23 +169,29 @@
 	}
 	.clear {
 		position: absolute;
-		right: 3px;
-		bottom: 3px;
-		width: 32px;
-		height: 32px;
+		right: 6px;
+		/* No transform: the global :active nudge sets one. */
+		top: calc(50% - 12px);
+		width: 24px;
+		height: 24px;
+		/* The global 44px touch floor would make it taller than the input. */
+		min-height: 0;
 		display: grid;
 		place-items: center;
 		padding: 0;
 		border: 0;
-		border-radius: calc(var(--r-ctl) - 2px);
+		border-radius: 50%;
 		background: none;
 		color: var(--ink-3);
-		font-size: 1.15rem;
+		font-size: 1.1rem;
 		line-height: 1;
 		cursor: pointer;
 	}
+	.box {
+		position: relative;
+		min-width: 0;
+	}
 	.clear:hover {
-		background: var(--paper-2);
 		color: var(--ink);
 	}
 	.clear:focus-visible {

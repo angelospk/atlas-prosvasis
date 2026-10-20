@@ -16,6 +16,8 @@ export interface Insight {
 	metric: MapMetric;
 	/** Where «Δες αναλυτικά» goes: the point map (needs evidenceKey), the list, or the sector counts. */
 	detail: 'points' | 'list' | 'sites';
+	/** A part of text that links to the same place as «Δες αναλυτικά». */
+	link?: string;
 }
 
 /** The ids shown on the page, in order. Ids missing from a week's data are skipped. */
@@ -72,9 +74,11 @@ export function insights(data: AtlasData): Insight[] {
 	const covered = specialtiesCovered(data, PUBLIC);
 	const thin = [...data.prefectures].sort((a, b) => (covered.get(a.id) ?? 0) - (covered.get(b.id) ?? 0) || b.population - a.population)[0];
 	if (thin) {
+		const link = `${covered.get(thin.id) ?? 0} από τις ${data.specialties.length} ειδικότητες`;
 		out.push({
 			id: 'thinnest',
-			text: `Ν. ${thin.genitive}: το δημόσιο δίνει ηλεκτρονικό ραντεβού μόνο για ${covered.get(thin.id) ?? 0} από τις ${data.specialties.length} ειδικότητες.`,
+			text: `Ν. ${thin.genitive}: το δημόσιο δίνει ηλεκτρονικό ραντεβού μόνο για ${link}.`,
+			link,
 			selection: { mode: 'place', prefectureId: thin.id, specialtyId: null, sectors: [...PUBLIC] },
 			evidenceKey: null,
 			metric: 'coverage',

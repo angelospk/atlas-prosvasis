@@ -24,7 +24,7 @@
 		onHeightChange?: (height: number) => void;
 	} = $props();
 	let element: HTMLElement;
-	const links: { section: Section; label: string }[] = [{section:'map',label:'Χάρτης'},{section:'list',label:'Λίστα'},{section:'waits',label:'Αναμονή'},{section:'details',label:'Αναλυτικά'}];
+	const links: { section: Section; label: string }[] = [{section:'map',label:'Χάρτης'},{section:'list',label:'Λίστα'},{section:'waits',label:'Αναμονή'},{section:'details',label:'Αναλυτικά'},{section:'method',label:'Μεθοδολογία'}];
 	onMount(() => {
 		const publish = () => { const height = element.offsetHeight; document.documentElement.style.setProperty('--atlas-bar-height', `${height}px`); onHeightChange(height); };
 		publish();
@@ -58,7 +58,7 @@
 		/* Row 1: the pickers and reset, full width. Row 2: mark and sections. */
 		.inner { display:grid; grid-template-columns:auto minmax(0,1fr); grid-template-areas:'pick pick' 'brand tail'; gap:.1rem .7rem; padding-top:.5rem; min-height:0; }
 		.pick { grid-area:pick; display:flex; } .brand { grid-area:brand; } .tail { grid-area:tail; margin-left:0; justify-content:space-between; }
-		nav { gap:clamp(.55rem,3vw,1.2rem); min-width:0; overflow-x:auto; scrollbar-width:none; } nav a { min-height:44px; font-size:clamp(.76rem,3.4vw,.84rem); }
+		nav { gap:clamp(.45rem,2.2vw,1.2rem); min-width:0; overflow-x:auto; scrollbar-width:none; } nav a { min-height:44px; font-size:clamp(.74rem,3.2vw,.84rem); }
 		.brand :global(svg) { width:26px; height:26px; }
 	}
 	@media (max-width:360px) { .inner { padding-inline:.6rem; column-gap:.5rem; } nav { gap:.4rem; } nav a { font-size:.72rem; } .tail { gap:.3rem; } }

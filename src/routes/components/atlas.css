@@ -83,8 +83,17 @@
 .atlas [id='atlas-map'],
 .atlas [id='atlas-list'],
 .atlas [id='atlas-waits'],
-.atlas [id='atlas-details'] {
+.atlas [id='atlas-details'],
+.atlas [id='atlas-method'] {
 	scroll-margin-top: calc(var(--atlas-bar-height, 0px) + 12px);
+}
+/* A section focused by the nav: the focus is for the next Tab, not a visible ring. */
+.atlas [id='atlas-map'][tabindex='-1']:focus,
+.atlas [id='atlas-list'][tabindex='-1']:focus,
+.atlas [id='atlas-waits'][tabindex='-1']:focus,
+.atlas [id='atlas-details'][tabindex='-1']:focus,
+.atlas [id='atlas-method'][tabindex='-1']:focus {
+	outline: none;
 }
 .atlas .results {
 	min-width: 0;

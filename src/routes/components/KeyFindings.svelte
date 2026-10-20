@@ -2,12 +2,23 @@
 	// «Τα δεδομένα έδειξαν ότι…»: the chosen headlines (insights.ts FEATURED), right under the
 	// header. Each loads its selection on the prefecture map, or opens the evidence in detail.
 	import type { AtlasData } from '$lib/atlas/types';
+	import { SECTORS } from '$lib/atlas/types';
+	import { writeAtlasUrl } from '$lib/atlas/url';
 	import { featured, FEATURED_VISIBLE, type Insight } from './insights';
 
 	let { data, onMap, onDetail }: { data: AtlasData; onMap: (i: Insight) => void; onDetail: (i: Insight) => void } = $props();
 	const items = $derived(featured(data));
 	let all = $state(false);
 	const shown = $derived(all ? items : items.slice(0, FEATURED_VISIBLE));
+	// The link carries the finding's selection, so a copied or new-tab link opens the same view.
+	function href(i: Insight): string {
+		const selection = { mode: 'place' as const, prefectureId: null, specialtyId: null, ...i.selection, sectors: [...(i.selection.sectors ?? SECTORS)] };
+		const url = writeAtlasUrl(new URL('http://x/'), selection, i.metric);
+		url.hash = i.detail === 'list' ? 'atlas-list' : 'atlas-map';
+		return url.search + url.hash;
+	}
+	// A modified click (new tab, new window) keeps the browser's default.
+	const plain = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 </script>
 
 {#if items.length}
@@ -15,8 +26,9 @@
 		<h2 id="atlas-key-title">Τα δεδομένα έδειξαν ότι…</h2>
 		<ol id="atlas-key-list">
 			{#each shown as item (item.id)}
+				{@const at = item.link ? item.text.indexOf(item.link) : -1}
 				<li>
-					<p id={`key-${item.id}`}>{item.text}</p>
+					<p id={`key-${item.id}`}>{#if at >= 0 && item.link}{item.text.slice(0, at)}<a href={href(item)} onclick={(e) => { if (!plain(e)) return; e.preventDefault(); onDetail(item); }}>{item.link}</a>{item.text.slice(at + item.link.length)}{:else}{item.text}{/if}</p>
 					<div class="actions">
 						<button type="button" class="primary" aria-describedby={`key-${item.id}`} onclick={() => onMap(item)}>Φόρτωσε στον χάρτη</button>
 						<button type="button" aria-describedby={`key-${item.id}`} onclick={() => onDetail(item)}>Δες αναλυτικά</button>
@@ -36,6 +48,8 @@
 	ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); }
 	li { display: grid; grid-template-rows: 1fr auto; gap: 0.9rem; padding: 1rem 1.1rem; background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: var(--r-box); min-width: 0; }
 	p { margin: 0; font-size: 1rem; line-height: 1.45; text-wrap: pretty; }
+	p a { color: inherit; text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 3px; }
+	p a:hover { color: var(--accent-d); }
 	.actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 	button { min-height: 40px; padding: 0 0.8rem; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); color: var(--accent-d); font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
 	button:hover { border-color: var(--accent); }
