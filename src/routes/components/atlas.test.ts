@@ -1087,3 +1087,29 @@ describe('honest claims (2026-10-13)', () => {
 		expect(render(MetricSummary, { props: { data: { ...report, pinIssues: [] }, selection: bySpec } }).body).not.toContain('προσωρινή απόσταση');
 	});
 });
+
+describe('offered vs bookable now', () => {
+	const [a, b] = data.specialties;
+	const base = { ...data.providers[0], sector: 'esy' as const, prefectureId: 20, firstDate: null };
+	// Offers a and b (seen in the last scans); this week only a has an open schedule and a date.
+	const offering = { ...base, id: 'u-off', specialtyIds: [a.id], offeredSpecialtyIds: [a.id, b.id], firstDates: { [String(a.id)]: data.scan.at.slice(0, 10) } };
+	const withOffer = { ...data, providers: [offering] };
+	it('a site that offers a specialty is listed for it, even with no open schedule this week', () => {
+		expect(providersIn(buildIndex(withOffer), 20, b.id, [...SECTORS]).map((x) => x.id)).toEqual(['u-off']);
+		expect(uniqueSites(withOffer, { mode: 'place', prefectureId: 20, specialtyId: b.id, sectors: ['esy'] })).toHaveLength(1);
+	});
+	it('it has no wait for that specialty: a date exists only where it is bookable now', () => {
+		expect(waitSamples(withOffer, { ...all, prefectureId: 20, specialtyId: b.id })).toHaveLength(0);
+		expect(waitSamples(withOffer, { ...all, prefectureId: 20, specialtyId: a.id })).toHaveLength(1);
+	});
+	it('data without offeredSpecialtyIds still reads specialtyIds', () => {
+		const old = { ...data, providers: [{ ...base, id: 'u-old', specialtyIds: [a.id] }] };
+		expect(providersIn(buildIndex(old), 20, a.id, [...SECTORS]).map((x) => x.id)).toEqual(['u-old']);
+		expect(providersIn(buildIndex(old), 20, b.id, [...SECTORS])).toHaveLength(0);
+	});
+	it('methodology says what «offers» means and why a week can miss a unit', () => {
+		const html = render(MethodologyBlock, { props: { report } }).body;
+		expect(html).toContain('τελευταίες 4 εβδομαδιαίες σαρώσεις');
+		expect(html).toContain('ανοιχτό πρόγραμμα');
+	});
+});

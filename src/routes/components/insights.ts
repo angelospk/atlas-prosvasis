@@ -60,7 +60,7 @@ export function insights(data: AtlasData): Insight[] {
 	for (const [i, g] of gaps.entries()) {
 		out.push({
 			id: i === 0 ? 'gap-worst' : `gap-${g.s.id}`,
-			text: `${g.s.name}: σε ${g.missing.length} από τους ${total} νομούς δεν υπάρχει δημόσια δομή με ηλεκτρονικό ραντεβού. Εκεί ζουν ${people(g.residents)} κάτοικοι.`,
+			text: `${g.s.name}: σε ${g.missing.length} από τους ${total} νομούς δεν υπάρχει δημόσια δομή στον κατάλογο ηλεκτρονικών ραντεβού. Εκεί ζουν ${people(g.residents)} κάτοικοι.`,
 			selection: { mode: 'specialty', prefectureId: null, specialtyId: g.s.id, sectors: [...PUBLIC] },
 			evidenceKey: null,
 			metric: 'coverage',

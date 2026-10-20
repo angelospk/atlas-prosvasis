@@ -9,7 +9,7 @@
 	import 'leaflet.markercluster/dist/MarkerCluster.css';
 	import type { AtlasData, Provider, Selection } from '$lib/atlas/types';
 	import { SECTORS } from '$lib/atlas/types';
-	import { buildIndex, providerName, cellKey, fmtKm, nearestFor, parseKey, prefLabel, providersIn, SECTOR_SHORT, titleCase } from './format';
+	import { buildIndex, notBookableNow, offeredIds, providerName, cellKey, fmtKm, nearestFor, parseKey, prefLabel, providersIn, SECTOR_SHORT, titleCase } from './format';
 
 	let {
 		data,
@@ -69,7 +69,7 @@
 
 	function keyFor(p: Provider): string | null {
 		if (p.prefectureId == null) return null;
-		const spec = selection.specialtyId != null && p.specialtyIds.includes(selection.specialtyId) ? selection.specialtyId : p.specialtyIds[0];
+		const spec = selection.specialtyId != null && offeredIds(p).includes(selection.specialtyId) ? selection.specialtyId : offeredIds(p)[0];
 		return spec == null ? null : cellKey(p.prefectureId, spec);
 	}
 
@@ -85,10 +85,10 @@
 				L!.divIcon({ className: 'atlas-cluster', html: `<span>${c.getChildCount()}</span>`, iconSize: [26, 26] })
 		});
 		for (const p of located) {
-			const inSel = !!selKey && p.prefectureId === selKey.prefectureId && p.specialtyIds.includes(selKey.specialtyId);
+			const inSel = !!selKey && p.prefectureId === selKey.prefectureId && offeredIds(p).includes(selKey.specialtyId);
 			const m = L.marker([p.lat!, p.lon!], { icon: iconFor(p, inSel), keyboard: false });
 			const where = p.prefectureId != null ? prefLabel(idx.prefById.get(p.prefectureId)) : '';
-			m.bindTooltip(`${providerName(p)}${where ? ` · ${where}` : ''}${p.approx ? ' · θέση περίπου' : ''}`, {
+			m.bindTooltip(`${providerName(p)}${where ? ` · ${where}` : ''}${p.approx ? ' · θέση περίπου' : ''}${selection.specialtyId != null && notBookableNow(p, selection.specialtyId) ? ' · χωρίς ανοιχτό πρόγραμμα αυτή την εβδομάδα' : ''}`, {
 				direction: 'top',
 				offset: [0, -6],
 				className: 'atlas-km'

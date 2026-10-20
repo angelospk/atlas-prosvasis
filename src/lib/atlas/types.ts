@@ -55,7 +55,10 @@ export interface Provider {
 	lon: number | null;
 	/** Ministry pin was missing/wrong: this is the town centre. */
 	approx: boolean;
+	/** Specialties bookable in this scan (listed with an open schedule). */
 	specialtyIds: number[];
+	/** Specialties offered: listed in any of the last 4 scans (schema 2). Older data: absent, read specialtyIds. */
+	offeredSpecialtyIds?: number[];
 	/** Hospitals/centres only: first free appointment at scan time, ISO (any specialty). */
 	firstDate: string | null;
 	/** First free appointment per specialty id (as string key), ISO. Prefer this. */

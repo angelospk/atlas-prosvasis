@@ -221,7 +221,7 @@ export function buildIndex(data: AtlasData): AtlasIndex {
 	const provBySpec = new Map<number, Provider[]>();
 	const provByCell = new Map<string, Provider[]>();
 	for (const p of data.providers) {
-		for (const s of p.specialtyIds) {
+		for (const s of offeredIds(p)) {
 			const arr = provBySpec.get(s);
 			if (arr) arr.push(p);
 			else provBySpec.set(s, [p]);
@@ -239,10 +239,20 @@ export function buildIndex(data: AtlasData): AtlasIndex {
 	return idx;
 }
 
+/** What a site offers: any specialty listed in the last 4 scans, bookable this week or not. */
+export function offeredIds(p: Provider): number[] {
+	return p.offeredSpecialtyIds ?? p.specialtyIds;
+}
+
+/** Offered, but no open schedule in this scan. */
+export function notBookableNow(p: Provider, specialtyId: number): boolean {
+	return offeredIds(p).includes(specialtyId) && !p.specialtyIds.includes(specialtyId);
+}
+
 /** Each site of a selection once (whatever its specialties): the unit of «μοναδικά σημεία». */
 export function uniqueSites(data: AtlasData, selection: Selection): Provider[] {
 	const { prefectureId, specialtyId, sectors } = selection;
-	return data.providers.filter((p) => sectors.includes(p.sector) && (prefectureId == null || p.prefectureId === prefectureId) && (specialtyId == null || p.specialtyIds.includes(specialtyId)));
+	return data.providers.filter((p) => sectors.includes(p.sector) && (prefectureId == null || p.prefectureId === prefectureId) && (specialtyId == null || offeredIds(p).includes(specialtyId)));
 }
 
 /** Providers located in a prefecture offering a specialty, restricted to `sectors`. */
