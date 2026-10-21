@@ -1393,3 +1393,12 @@ describe('open data links', () => {
 		expect(html).not.toContain('χωρίς ηλεκτρονικό ραντεβού');
 	});
 });
+
+describe('version', () => {
+	it('the footer shows the major.minor of package.json', () => {
+		const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
+		const html = render(AtlasFooter, { props: {} }).body;
+		expect(html).toContain(`έκδοση ${pkg.version.split('.').slice(0, 2).join('.')}`);
+		expect(pkg.version).toBe('0.5.0');
+	});
+});
