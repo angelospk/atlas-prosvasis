@@ -12,7 +12,7 @@
 	import type { AtlasReport, Metric, PrefectureBoundaries, Provider, Selection } from '$lib/atlas/types';
 	import { SECTORS } from '$lib/atlas/types';
 	import { calculateActiveSection, SECTION_IDS, SECTION_ORDER, type Section } from './components/navigation';
-	import { parseKey } from './components/format';
+	import { fmtDateLong, parseKey } from './components/format';
 	import MetricSummary from './components/MetricSummary.svelte';
 	import CoverageList from './components/CoverageList.svelte';
 	import AccessMap from './components/AccessMap.svelte';
@@ -165,6 +165,9 @@
 	function pickSpecialty(specialtyId: number | null) { requestSelection({ ...selection, specialtyId }); }
 	// On the map a second tap on the chosen prefecture goes back to all of Greece.
 	function togglePrefecture(prefectureId: number) { requestSelection({ ...selection, prefectureId: selection.prefectureId === prefectureId ? null : prefectureId }); }
+	// The point map beside the list (desktop) selects the row. On a phone the list is far above:
+	// a tap only names the site (its tooltip) and the view stays on the map.
+	function pickOnPointMap(key: string) { if (!compact) openCell(key); }
 	function openCell(key: string) {
 		const parsed = parseKey(key);
 		if (!parsed) return;
@@ -322,7 +325,7 @@
   <a class="skip-link" href="#atlas-map">Μετάβαση στον χάρτη</a>
   <AtlasNav {data} selection={pendingSelection ?? selection} onChange={pickFromNav} onReset={reset} {updating} {activeSection} onNavigate={navigate} onHeightChange={publishBarHeight} />
   <main class="page">
-  <header class="top"><div class="intro"><h1>Δημόσια ιατρική φροντίδα, <span>νομό προς νομό.</span></h1><p class="lede">Ανοιχτά δεδομένα από το e-ραντεβού του Υπουργείου Υγείας: πού βρίσκεις την ειδικότητα που σου καλύπτει η δημόσια ασφάλιση, πόσο απέχει και πόσες ημέρες μέχρι το πρώτο ραντεβού.</p><p class="edition"><strong>{data.prefectures.length} νομοί</strong><span aria-hidden="true">·</span><strong>{data.specialties.length} ειδικότητες</strong><span aria-hidden="true">·</span>σάρωση {new Date(data.scan.at).toLocaleDateString('el-GR', { timeZone: 'UTC' })}</p></div><div class="art"><HeroConstellation {data} boundaries={page.boundaries} /></div></header>
+  <header class="top"><div class="intro"><h1>Δημόσια ιατρική φροντίδα, <span>νομό προς νομό.</span></h1><p class="lede">Ανοιχτά δεδομένα από το e-ραντεβού του Υπουργείου Υγείας: πού βρίσκεις την ειδικότητα που σου καλύπτει η δημόσια ασφάλιση, πόσο απέχει και πόσες ημέρες μέχρι το πρώτο ραντεβού.</p><p class="edition"><strong>{data.prefectures.length} νομοί</strong><span aria-hidden="true">·</span><strong>{data.specialties.length} ειδικότητες</strong><span aria-hidden="true">·</span>σάρωση {fmtDateLong(data.scan.at)}</p></div><div class="art"><HeroConstellation {data} boundaries={page.boundaries} /></div></header>
 
 		<div class="results" aria-busy={updating}>
 			<KeyFindings {data} onMap={insightOnMap} onDetail={insightDetail} />
@@ -343,7 +346,7 @@
 					{#if !compact || pointMapOpen}
 						<section id="atlas-point-map" class="point-map-panel" aria-labelledby="atlas-point-map-heading">
 							<h2 id="atlas-point-map-heading" tabindex="-1" bind:this={pointHeading}>Χάρτης σημείων</h2>
-							<AccessMap data={data} selection={selection} {selectedKey} onSelect={openCell} {focusSite} /><ShareWidget widget="points" {selection} />
+							<AccessMap data={data} selection={selection} {selectedKey} onSelect={pickOnPointMap} {focusSite} /><ShareWidget widget="points" {selection} />
 						</section>
 					{/if}
 				</div>

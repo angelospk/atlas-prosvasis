@@ -206,6 +206,9 @@
 		</label>{/if}
 	</header>
 
+	<!-- Block flow, not a grid: a sticky «Λιγότερες» may only travel inside its containing block,
+	     and in a grid that is its own row. -->
+	<div class="fold">
 	<!-- A list of row buttons, not an ARIA table: table roles on a <button> hide that it is a button. -->
 	<div class="table">
 		{#if !compact}
@@ -228,8 +231,9 @@
 	</div>
 
 	{#if available.length > initialLimit}
-		<button type="button" class="expand" aria-expanded={expanded} aria-controls={listId} onclick={(e) => changeExpanded(!expanded, e.currentTarget)}>{expanded ? 'Λιγότερες' : 'Περισσότερες'}</button>
+		<button type="button" class="expand" class:stuck={expanded} aria-expanded={expanded} aria-controls={listId} onclick={(e) => changeExpanded(!expanded, e.currentTarget)}>{expanded ? 'Λιγότερες' : 'Περισσότερες'}</button>
 	{/if}
+	</div>
 	{#if missing.length > 0}
 		<details class="missing" open={missing.some((r) => r.key === selectedKey)}>
 			<summary>Ειδικότητες χωρίς σημεία <span class="muted">({missing.length})</span></summary>
@@ -253,6 +257,8 @@
 	.mobile-sort { display: none; align-items: center; gap: 0.45rem; color: var(--ink-2); font-size: 0.8rem; font-weight: 600; }
 	.mobile-sort select { min-height: 44px; max-width: 100%; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); color: var(--ink); padding: 0 0.45rem; font: inherit; font-size: 16px; }
 	.table { min-width: 0; }
+	.fold { min-width: 0; }
+	.fold > .expand { margin-top: 0.7rem; }
 	.head, .row { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(5.5rem, 0.7fr) minmax(5.5rem, 0.65fr) minmax(6rem, 0.75fr) minmax(8rem, 0.95fr) minmax(8rem, 1fr); gap: 0.7rem; align-items: center; min-width: 0; }
 	.head { padding: 0 0.5rem 0.4rem; border-bottom: 1px solid var(--line-2); color: var(--ink-3); font-size: 0.74rem; font-weight: 600; }
 	.head .sort { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: right; cursor: pointer; white-space: normal; }
@@ -280,6 +286,8 @@
 	.missing { border: 1px solid var(--line-2); border-radius: var(--r-ctl); }
 	.missing summary { min-height: 44px; padding: 0.7rem 0.85rem; color: var(--ink-2); font-size: 0.84rem; font-weight: 600; cursor: pointer; }
 	.empty { margin: 1rem 0.5rem; color: var(--ink-3); }
+	/* While the list is open, «Λιγότερες» stays at the bottom of the screen until the list ends. */
+	.expand.stuck { position: sticky; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 2; box-shadow: var(--shadow); }
 	.expand { justify-self: start; min-height: 44px; padding: 0 0.85rem; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); color: var(--ink-2); font: inherit; font-size: 0.84rem; font-weight: 600; cursor: pointer; }
 	.detail { margin: 0; padding: 0.2rem 0.5rem 0.9rem 1.1rem; border-left: 2px solid var(--accent); font-size: 0.86rem; min-width: 0; }
 	.dsum { margin: 0 0 0.5rem; color: var(--ink-2); }

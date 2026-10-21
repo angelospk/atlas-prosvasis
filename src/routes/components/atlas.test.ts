@@ -1201,3 +1201,21 @@ describe('methodology link and summary count (2026-10-21)', () => {
 		expect(list).not.toContain('class="pin');
 	});
 });
+
+describe('scan date and sticky collapse (2026-10-21)', () => {
+	const noop = () => {};
+	const sel: Selection = { mode: 'place', prefectureId: null, specialtyId: null, sectors: [...SECTORS] };
+	it('the header dates a scan that ends just after midnight by its own day, like the rest of the page', () => {
+		// No zone in the stamp: a browser east of UTC must not read it as the previous day.
+		const late = { ...report, scan: { ...report.scan, at: '2026-10-21T00:01:19' } };
+		const html = render(Page, { props: { data: { atlas: late, boundaries } } }).body;
+		expect(html).toMatch(/σάρωση 21 Οκτωβρίου 2026/);
+		expect(html).not.toContain('20/10/2026');
+	});
+	it('an expanded coverage list keeps «Λιγότερες» stuck to the bottom of the screen', () => {
+		const wide = wideCoverageFixture();
+		const props = { data: wide, selection: sel, sort: 'count' as const, onSort: noop, selectedKey: null, onSelect: noop, compact: true, onExpandedChange: noop };
+		expect(render(CoverageList, { props: { ...props, expanded: true } }).body).toMatch(/class="expand[^"]*\bstuck\b[^"]*"[^>]*>Λιγότερες/);
+		expect(render(CoverageList, { props: { ...props, expanded: false } }).body).not.toContain('stuck');
+	});
+});
