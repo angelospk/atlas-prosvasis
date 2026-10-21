@@ -7,8 +7,8 @@
 
 <ul class="state-legend" aria-label="Υπόμνημα καταστάσεων">
 	<li><span class="area on" aria-hidden="true"></span><span class="pt on" aria-hidden="true"></span>ηλεκτρονικό ραντεβού</li>
-	<li><span class="area reg" aria-hidden="true"></span><span class="pt off" aria-hidden="true"></span>δηλωμένο ιατρείο, χωρίς ηλεκτρονικό ραντεβού</li>
-	<li><span class="area none" aria-hidden="true"></span><span class="pt blank" aria-hidden="true"></span>καμία {publicOnly ? 'δημόσια ' : ''}δομή στον κατάλογο</li>
+	<li><span class="area reg" aria-hidden="true"></span><span class="pt off" aria-hidden="true"></span>δηλωμένο ιατρείο, αλλά δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού</li>
+	<li><span class="area none" aria-hidden="true"></span><span class="pt blank" aria-hidden="true"></span>δεν βρήκαμε {publicOnly ? 'δημόσιο ' : ''}ιατρείο</li>
 </ul>
 
 <style>

@@ -1276,10 +1276,10 @@ describe('declared clinic, no e-booking (phase 2)', () => {
 		expect(siteState({ ...gn, specialtyIds: [] }, null)).toBe('off');
 	});
 	it('an off site says when it was last bookable, or never', () => {
-		expect(lastBookableText(gn, 28)).toBe('τελευταία φορά με ηλεκτρονικό ραντεβού: 11 Οκτ');
-		expect(lastBookableText(gn, 44)).toBe('τελευταία φορά με ηλεκτρονικό ραντεβού: ποτέ');
+		expect(lastBookableText(gn, 28)).toBe('τελευταία φορά με ελεύθερο ηλεκτρονικό ραντεβού: 11 Οκτ');
+		expect(lastBookableText(gn, 44)).toBe('τελευταία φορά με ελεύθερο ηλεκτρονικό ραντεβού: ποτέ στις σαρώσεις μας');
 		// Schema 2 data has no lastBookable: unknown is not «never».
-		expect(lastBookableText({ ...gn, lastBookable: undefined }, 28)).toBe('χωρίς ηλεκτρονικό ραντεβού αυτή τη στιγμή');
+		expect(lastBookableText({ ...gn, lastBookable: undefined }, 28)).toBe('δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού αυτή τη στιγμή');
 	});
 	it('a declared clinic never adds coverage, it is listed apart', () => {
 		const only = { ...gn, id: 'u9', specialtyIds: [], offeredSpecialtyIds: [], registeredSpecialtyIds: [44], lastBookable: { '44': null } };
@@ -1302,11 +1302,11 @@ describe('declared clinic, no e-booking (phase 2)', () => {
 		const on = prefectureSentence(pidx, 34, 16, ['esy', 'pfy']);
 		expect(on).toBe('Καρδιολόγος, Λευκάδα: ηλεκτρονικό ραντεβού στο Γενικο Νοσοκομειο Λευκαδας, από 2 Νοε.');
 		const reg = prefectureSentence(pidx, 34, 44, ['esy', 'pfy']);
-		expect(reg).toBe('Ψυχίατρος, Λευκάδα: υπάρχει δηλωμένο ιατρείο στο Γενικο Νοσοκομειο Λευκαδας, αλλά δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή.');
-		expect(prefectureSentence(pidx, 34, 28, ['esy', 'pfy'])).toBe('Οφθαλμίατρος, Λευκάδα: υπάρχει δημόσια δομή στο Γενικο Νοσοκομειο Λευκαδας, αλλά δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή (τελευταία φορά: 11 Οκτ).');
-		expect(prefectureSentence(pidx, 34, 32, ['esy', 'pfy'])).toBe('Παιδίατρος, Λευκάδα: καμία δημόσια δομή στον κατάλογο ηλεκτρονικών ραντεβού.');
+		expect(reg).toBe('Ψυχίατρος, Λευκάδα: υπάρχει δηλωμένο ιατρείο στο Γενικο Νοσοκομειο Λευκαδας, αλλά δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού.');
+		expect(prefectureSentence(pidx, 34, 28, ['esy', 'pfy'])).toBe('Οφθαλμίατρος, Λευκάδα: υπάρχει δημόσια δομή στο Γενικο Νοσοκομειο Λευκαδας, αλλά δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού αυτή τη στιγμή (τελευταία φορά: 11 Οκτ).');
+		expect(prefectureSentence(pidx, 34, 32, ['esy', 'pfy'])).toBe('Παιδίατρος, Λευκάδα: δεν βρήκαμε δημόσιο ιατρείο στον κατάλογο ηλεκτρονικών ραντεβού.');
 		const two = buildIndex({ ...lefkada, providers: [{ ...gn, specialtyIds: [] }, { ...gn, id: 'u125', specialtyIds: [] }] });
-		expect(prefectureSentence(two, 34, 44, ['esy', 'pfy'])).toBe('Ψυχίατρος, Λευκάδα: υπάρχουν δηλωμένα ιατρεία σε 2 μονάδες, αλλά καμία δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή.');
+		expect(prefectureSentence(two, 34, 44, ['esy', 'pfy'])).toBe('Ψυχίατρος, Λευκάδα: υπάρχουν δηλωμένα ιατρεία σε 2 μονάδες, αλλά δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού σε καμία.');
 		const tomy = buildIndex({ ...lefkada, providers: [{ ...gn, id: 'u7', sector: 'pfy', name: 'ΤΟΠΙΚΗ ΜΟΝΑΔΑ ΥΓΕΙΑΣ ΛΕΥΚΑΔΑΣ' }] });
 		expect(prefectureSentence(tomy, 34, 44, ['esy', 'pfy'])).toContain('στην Τοπικη Μοναδα Υγειας Λευκαδας');
 		for (const s of [on, reg]) expect(s).not.toMatch(/λειτουργεί|τηλεφωνικά|κλείστε/);
@@ -1315,8 +1315,8 @@ describe('declared clinic, no e-booking (phase 2)', () => {
 		const html = render(PrefectureChoropleth, { props: { data: lefkada, boundaries, selection: pub, onSelect: () => {} } }).body;
 		expect(html).toMatch(/fill="url\(#[^)]*-reg\)"/);
 		expect(html).toContain('ηλεκτρονικό ραντεβού');
-		expect(html).toContain('δηλωμένο ιατρείο, χωρίς ηλεκτρονικό ραντεβού');
-		expect(html).toContain('καμία δημόσια δομή');
+		expect(html).toContain('δηλωμένο ιατρείο, αλλά δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού');
+		expect(html).toContain('δεν βρήκαμε δημόσιο ιατρείο');
 		// The tapped prefecture's card carries the sentence.
 		const card = render(PrefectureChoropleth, { props: { data: lefkada, boundaries, selection: { ...pub, prefectureId: 34 }, onSelect: () => {} } }).body;
 		expect(card).toContain('υπάρχει δηλωμένο ιατρείο στο Γενικο Νοσοκομειο Λευκαδας');
@@ -1329,12 +1329,12 @@ describe('declared clinic, no e-booking (phase 2)', () => {
 	});
 	it('the point map carries the same legend', () => {
 		const html = render(AccessMap, { props: { data: lefkada, selection: { ...pub, mode: 'place', prefectureId: 34 }, selectedKey: null, onSelect: () => {} } }).body;
-		expect(html).toContain('δηλωμένο ιατρείο, χωρίς ηλεκτρονικό ραντεβού');
+		expect(html).toContain('δηλωμένο ιατρείο, αλλά δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού');
 		expect(html).toContain('state-legend');
 	});
 	it('the gap headline splits «no structure» from «declared, no e-booking»', () => {
 		const t = insights(lefkada).find((i) => i.id === 'gap-44' || (i.id === 'gap-worst' && i.text.startsWith('Ψυχίατρος')))!.text;
-		expect(t).toMatch(/^Ψυχίατρος: σε \d+ από τους 51 νομούς δεν υπάρχει καμία δημόσια δομή στον κατάλογο ηλεκτρονικών ραντεβού· σε άλλον έναν υπάρχει δηλωμένο ιατρείο, αλλά χωρίς ηλεκτρονικό ραντεβού τον τελευταίο μήνα\./);
+		expect(t).toMatch(/^Ψυχίατρος: σε \d+ από τους 51 νομούς δεν βρήκαμε κανένα δημόσιο ιατρείο στον κατάλογο ηλεκτρονικών ραντεβού· σε άλλον έναν υπάρχει δηλωμένο ιατρείο, αλλά δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού τον τελευταίο μήνα\./);
 		// Without declared clinics the old sentence stays.
 		expect(insights(data).find((i) => i.id === 'gap-worst')!.text).not.toContain('δηλωμένο');
 	});
@@ -1343,6 +1343,8 @@ describe('declared clinic, no e-booking (phase 2)', () => {
 		expect(html).toContain('δηλωμένο ιατρείο');
 		expect(html).toContain('25 Οκτωβρίου 2026');
 		expect(html).toContain('3 εβδομάδες');
+		// We cannot tell a full calendar from no e-booking at all: say so.
+		expect(html).toContain('δεν ξέρουμε αν οι θέσεις είναι κλεισμένες');
 	});
 	it('no clinic name is ever shown, only units', () => {
 		const html = render(PrefectureChoropleth, { props: { data: lefkada, boundaries, selection: { ...pub, prefectureId: 34 }, onSelect: () => {} } }).body;

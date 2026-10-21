@@ -44,10 +44,10 @@ const pct = (a: number, b: number) => `${fmtInt(Math.round((a / b) * 100))}%`;
 /** N + M = the gap on the offers basis: N with no public structure, M with a declared clinic only. */
 function gapText(name: string, gap: number, m: number, total: number, residents: string): string {
 	const n = gap - m;
-	if (m === 0) return `${name}: σε ${gap} από τους ${total} νομούς δεν υπάρχει δημόσια δομή στον κατάλογο ηλεκτρονικών ραντεβού. Εκεί ζουν ${residents} κάτοικοι.`;
-	const declaredPart = 'υπάρχει δηλωμένο ιατρείο, αλλά χωρίς ηλεκτρονικό ραντεβού τον τελευταίο μήνα';
+	if (m === 0) return `${name}: σε ${gap} από τους ${total} νομούς δεν βρήκαμε δημόσιο ιατρείο στον κατάλογο ηλεκτρονικών ραντεβού. Εκεί ζουν ${residents} κάτοικοι.`;
+	const declaredPart = 'υπάρχει δηλωμένο ιατρείο, αλλά δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού τον τελευταίο μήνα';
 	if (n === 0) return `${name}: σε ${m} από τους ${total} νομούς ${declaredPart}. Εκεί ζουν ${residents} κάτοικοι.`;
-	return `${name}: σε ${n} από τους ${total} νομούς δεν υπάρχει καμία δημόσια δομή στον κατάλογο ηλεκτρονικών ραντεβού· ${m === 1 ? 'σε άλλον έναν' : `σε άλλους ${m}`} ${declaredPart}. Στους ${gap} αυτούς νομούς ζουν ${residents} κάτοικοι.`;
+	return `${name}: σε ${n} από τους ${total} νομούς δεν βρήκαμε κανένα δημόσιο ιατρείο στον κατάλογο ηλεκτρονικών ραντεβού· ${m === 1 ? 'σε άλλον έναν' : `σε άλλους ${m}`} ${declaredPart}. Στους ${gap} αυτούς νομούς ζουν ${residents} κάτοικοι.`;
 }
 
 export function insights(data: AtlasData): Insight[] {

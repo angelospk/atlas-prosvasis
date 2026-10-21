@@ -229,7 +229,7 @@
 		if (waitMode) parts.push(info.wait ? `${fmtStat(metric === 'first' ? info.wait.min : info.wait.mean)} ημέρες · ${info.wait.n} σημεία με ημερομηνία` : 'χωρίς ημερομηνία');
 		else if (!rateMode) parts.push(`${info.covered} από ${specTotal} ειδικότητες`);
 		else if (!info.row) parts.push('χωρίς μέτρηση');
-		else parts.push(info.row.count === 0 ? (info.registered ? 'δηλωμένο ιατρείο, χωρίς ηλεκτρονικό ραντεβού' : 'δεν καταγράφεται στον κατάλογο') : `${plural(info.row.count, 'σημείο', 'σημεία')}, ${fmtPer100k(info.row.per100k)} ανά 100 χιλ.`);
+		else parts.push(info.row.count === 0 ? (info.registered ? 'δηλωμένο ιατρείο, αλλά δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού' : 'δεν καταγράφεται στον κατάλογο') : `${plural(info.row.count, 'σημείο', 'σημεία')}, ${fmtPer100k(info.row.per100k)} ανά 100 χιλ.`);
 		return parts.join(' · ');
 	}
 	// Hovered or focused first; otherwise the selected prefecture, so a tap on a phone (no hover)
@@ -261,7 +261,7 @@
 			downloadText(`${fileStem()}.csv`, toCsv([...meta, head, ...body]));
 			return;
 		}
-		const head = ['Νομός', 'Έδρα', `Πληθυσμός ${data.populationYear}`, ...cols.map((s) => SECTOR_LABEL[s]), 'Σύνολο σημείων', 'Ανά 100.000', 'Πρώτο ραντεβού (δημόσια)', 'Πλησιέστερος από την έδρα (χλμ, σε ευθεία)', 'Δηλωμένο ιατρείο χωρίς ηλεκτρονικό ραντεβού (μονάδες)'];
+		const head = ['Νομός', 'Έδρα', `Πληθυσμός ${data.populationYear}`, ...cols.map((s) => SECTOR_LABEL[s]), 'Σύνολο σημείων', 'Ανά 100.000', 'Πρώτο ραντεβού (δημόσια)', 'Πλησιέστερος από την έδρα (χλμ, σε ευθεία)', 'Δηλωμένο ιατρείο χωρίς ελεύθερο ηλεκτρονικό ραντεβού (μονάδες)'];
 		const body = sortedPrefs.map((p) => {
 			const r = rowByPref.get(p.id);
 			return [
@@ -329,7 +329,7 @@
 			// Legend: two columns.
 			const ly = mapY + mapH + 16;
 			const entries: { fill: string | null; text: string; reg?: boolean }[] = CLASSES.map((c) => ({ fill: FILL[c], text: `${CLASS_TEXT[c]} · ${classCounts.counts[c] - (c === 0 ? regN : 0)} νομοί` }));
-			if (regN > 0) entries.push({ fill: PAPER, reg: true, text: `δηλωμένο ιατρείο, χωρίς ηλεκτρονικό ραντεβού · ${regN} νομοί` });
+			if (regN > 0) entries.push({ fill: PAPER, reg: true, text: `δηλωμένο ιατρείο, χωρίς ελεύθερο ηλεκτρονικό ραντεβού · ${regN} νομοί` });
 			if (classCounts.unknown > 0) entries.push({ fill: null, text: `χωρίς μέτρηση · ${classCounts.unknown}` });
 			ctx.font = `400 14px ${SANS}`;
 			entries.forEach((e, i) => {

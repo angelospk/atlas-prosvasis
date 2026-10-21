@@ -279,13 +279,13 @@ export function siteState(p: Provider, specialtyId: number | null): SiteState | 
 	return offeredIds(p).includes(specialtyId) || registeredIds(p).includes(specialtyId) ? 'off' : null;
 }
 
-/** «τελευταία φορά με ηλεκτρονικό ραντεβού: 11 Οκτ» or «… ποτέ» (null in the data), for an
+/** «τελευταία φορά με ελεύθερο ηλεκτρονικό ραντεβού: 11 Οκτ» or «… ποτέ στις σαρώσεις μας» (null), for an
  *  off site; data without the date (before schema 3) says only that it is off now. */
 export function lastBookableText(p: Provider, specialtyId: number): string {
 	const key = String(specialtyId);
-	if (!p.lastBookable || !(key in p.lastBookable)) return 'χωρίς ηλεκτρονικό ραντεβού αυτή τη στιγμή';
+	if (!p.lastBookable || !(key in p.lastBookable)) return 'δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού αυτή τη στιγμή';
 	const d = p.lastBookable[key];
-	return `τελευταία φορά με ηλεκτρονικό ραντεβού: ${d ? fmtDayShort(d) : 'ποτέ'}`;
+	return `τελευταία φορά με ελεύθερο ηλεκτρονικό ραντεβού: ${d ? fmtDayShort(d) : 'ποτέ στις σαρώσεις μας'}`;
 }
 
 /** Sites with a declared clinic for the specialty and nothing offered (no coverage), in `sectors`. */
@@ -329,13 +329,13 @@ export function prefectureSentence(idx: AtlasIndex, prefectureId: number, specia
 	if (sites.length === 1) {
 		const d = sites[0].lastBookable?.[String(specialtyId)];
 		const at = isPub(sites[0]) ? `${atUnit(sites[0])} ` : '';
-		return `${head}: ${at ? `υπάρχει δημόσια δομή ${at.trim()}` : 'υπάρχει 1 σημείο στον κατάλογο'}, αλλά δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή${d ? ` (τελευταία φορά: ${fmtDayShort(d)})` : ''}.`;
+		return `${head}: ${at ? `υπάρχει δημόσια δομή ${at.trim()}` : 'υπάρχει 1 σημείο στον κατάλογο'}, αλλά δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού αυτή τη στιγμή${d ? ` (τελευταία φορά: ${fmtDayShort(d)})` : ''}.`;
 	}
-	if (sites.length) return `${head}: υπάρχουν ${sites.length} σημεία στον κατάλογο, αλλά κανένα δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή.`;
+	if (sites.length) return `${head}: υπάρχουν ${sites.length} σημεία στον κατάλογο, αλλά δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού σε κανένα αυτή τη στιγμή.`;
 	const off = registeredOnlyIn(idx, prefectureId, specialtyId, sectors);
-	if (off.length === 1) return `${head}: υπάρχει δηλωμένο ιατρείο ${atUnit(off[0])}, αλλά δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή.`;
-	if (off.length > 1) return `${head}: υπάρχουν δηλωμένα ιατρεία σε ${off.length} μονάδες, αλλά καμία δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή.`;
-	return `${head}: καμία ${sectors.every((s) => s === 'esy' || s === 'pfy') ? 'δημόσια ' : ''}δομή στον κατάλογο ηλεκτρονικών ραντεβού.`;
+	if (off.length === 1) return `${head}: υπάρχει δηλωμένο ιατρείο ${atUnit(off[0])}, αλλά δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού.`;
+	if (off.length > 1) return `${head}: υπάρχουν δηλωμένα ιατρεία σε ${off.length} μονάδες, αλλά δεν βρήκαμε ελεύθερο ηλεκτρονικό ραντεβού σε καμία.`;
+	return `${head}: δεν βρήκαμε ${sectors.every((s) => s === 'esy' || s === 'pfy') ? 'δημόσιο ' : ''}ιατρείο στον κατάλογο ηλεκτρονικών ραντεβού.`;
 }
 
 /** Each site of a selection once (whatever its specialties): the unit of «μοναδικά σημεία». */

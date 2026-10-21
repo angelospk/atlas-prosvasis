@@ -88,7 +88,7 @@
 		return spec == null ? null : cellKey(p.prefectureId, spec);
 	}
 
-	/** « · ηλεκτρονικό ραντεβού από 2 Νοε» / « · τελευταία φορά με ηλεκτρονικό ραντεβού: ποτέ». */
+	/** « · ηλεκτρονικό ραντεβού από 2 Νοε» / « · τελευταία φορά με ελεύθερο ηλεκτρονικό ραντεβού: ποτέ στις σαρώσεις μας». */
 	function stateText(p: Provider): string {
 		const sid = selection.specialtyId;
 		if (sid == null) return '';
