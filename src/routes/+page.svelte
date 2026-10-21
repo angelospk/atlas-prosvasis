@@ -1,4 +1,6 @@
 <script lang="ts">
+	import DataLinks from './components/DataLinks.svelte';
+	import { filterFor } from '$lib/atlas/datasets';
 	import { onMount, tick } from 'svelte';
 	import { pushState, replaceState } from '$app/navigation';
 	import { readAtlasUrl, readWaitSort, writeAtlasUrl, writeWaitSort, type MapMetric, type WaitSort } from '$lib/atlas/url';
@@ -345,7 +347,7 @@
 					</div>
 					{#if !compact || pointMapOpen}
 						<section id="atlas-point-map" class="point-map-panel" aria-labelledby="atlas-point-map-heading">
-							<h2 id="atlas-point-map-heading" tabindex="-1" bind:this={pointHeading}>Χάρτης σημείων</h2>
+							<div class="h2row"><h2 id="atlas-point-map-heading" tabindex="-1" bind:this={pointHeading}>Χάρτης σημείων</h2><DataLinks dataset="sites" {data} filter={filterFor(selection)} /></div>
 							<AccessMap data={data} selection={selection} {selectedKey} onSelect={pickOnPointMap} {focusSite} /><ShareWidget widget="points" {selection} />
 						</section>
 					{/if}

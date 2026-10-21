@@ -1,4 +1,5 @@
 <script lang="ts">
+	import DataLinks from './DataLinks.svelte';
 	// What moved in the directory between consecutive complete scans: added site × specialty
 	// records and ones «no longer returned» (never "closed"). Paired bars on one shared scale,
 	// latest week first; a week opens to list its records.
@@ -29,7 +30,7 @@
 
 <section class="changes" aria-labelledby="atlas-changes-title">
 	<header>
-		<h2 id="atlas-changes-title">Τι άλλαξε στον κατάλογο</h2>
+		<div class="h2row"><h2 id="atlas-changes-title">Τι άλλαξε στον κατάλογο</h2><DataLinks dataset="scans" data={report} /></div>
 		<p class="sub">
 			Καταχωρίσεις (σημείο × ειδικότητα) ανά εβδομάδα, μεταξύ διαδοχικών πλήρων σαρώσεων.
 			{#if deltas.length > 0}

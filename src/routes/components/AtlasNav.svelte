@@ -37,7 +37,7 @@
 		<a class="brand" href="#atlas-map" aria-label="Άτλας πρόσβασης: στον χάρτη" onclick={(e) => { e.preventDefault(); onNavigate('map'); }}><AtlasMark size={32} /></a>
 		<div class="pick"><SelectionBar {data} {selection} {onChange} {onReset} /></div>
 		<div class="tail">
-			<nav aria-label="Ενότητες">{#each links as item (item.section)}<a href={`#${SECTION_IDS[item.section]}`} aria-current={activeSection === item.section ? 'location' : undefined} onclick={(e) => { e.preventDefault(); onNavigate(item.section); }}>{item.label}</a>{/each}</nav>
+			<nav aria-label="Ενότητες">{#each links as item (item.section)}<a href={`#${SECTION_IDS[item.section]}`} aria-current={activeSection === item.section ? 'location' : undefined} onclick={(e) => { e.preventDefault(); onNavigate(item.section); }}>{item.label}</a>{/each}<a class="data" href="/dedomena">Δεδομένα</a></nav>
 			<span class="status" role="status" aria-live="polite">{#if updating}<span class="spinner" aria-hidden="true"></span><span class="sr-only">Ενημέρωση…</span>{/if}</span>
 		</div>
 	</div>
@@ -62,4 +62,6 @@
 		.brand :global(svg) { width:26px; height:26px; }
 	}
 	@media (max-width:360px) { .inner { padding-inline:.6rem; column-gap:.5rem; } nav { gap:.4rem; } nav a { font-size:.72rem; } .tail { gap:.3rem; } }
+	/* No room for a sixth link on a phone: the data stay one tap away in every section and the footer. */
+	@media (max-width:560px) { nav a.data { display:none; } }
 </style>

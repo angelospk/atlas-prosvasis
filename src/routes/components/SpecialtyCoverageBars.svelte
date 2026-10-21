@@ -1,4 +1,5 @@
 <script lang="ts">
+	import DataLinks from './DataLinks.svelte';
 	// In how many of the 51 prefectures each specialty has at least one site (in the chosen
 	// sectors). Horizontal bars, the gaps first: the shortest bar is the story. Eight rows,
 	// the rest behind «Όλες οι ειδικότητες».
@@ -43,7 +44,7 @@
 
 <section class="bars" aria-labelledby="atlas-bars-title">
 	<header>
-		<h2 id="atlas-bars-title">Σε πόσους νομούς υπάρχει κάθε ειδικότητα</h2>
+		<div class="h2row"><h2 id="atlas-bars-title">Σε πόσους νομούς υπάρχει κάθε ειδικότητα</h2><DataLinks dataset="specialty-coverage" {data} /></div>
 		<p class="sub">
 			Νομοί με τουλάχιστον ένα σημείο, από {total} · {sectorsLabel(sectors)}
 			{#if missingEverywhere > 0}· <span class="strong">{missingEverywhere}</span> {missingEverywhere === 1 ? 'ειδικότητα' : 'ειδικότητες'} χωρίς καμία καταχώριση{/if}

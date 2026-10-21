@@ -1,4 +1,6 @@
 <script lang="ts">
+	import DataLinks from './DataLinks.svelte';
+	import { filterFor } from '$lib/atlas/datasets';
 	import { tick } from 'svelte';
 	import type { AtlasData, Metric, Provider, Selection } from '$lib/atlas/types';
 	import { SECTORS, SECTOR_LABEL } from '$lib/atlas/types';
@@ -197,7 +199,7 @@
 <section id="atlas-list" class="coverage-list" aria-labelledby={`${uid}-list-title`}>
 	<header class="list-head">
 		<div>
-			<h2 id={`${uid}-list-title`}>Κάλυψη</h2>
+			<div class="h2row"><h2 id={`${uid}-list-title`}>Κάλυψη</h2><DataLinks dataset="coverage" {data} filter={filterFor(selection)} /></div>
 			<p class="note">Φορείς: {SECTORS.map((s) => SECTOR_SHORT[s]).join(' · ')}. Αποστάσεις από την έδρα, σε ευθεία.</p>
 			{#if compact}<p class="note">Οι ημέρες μετρούν από τη σάρωση.</p>{/if}
 		</div>

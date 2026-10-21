@@ -1,4 +1,5 @@
 <script lang="ts">
+	import DataLinks from './DataLinks.svelte';
 	import type { AtlasData, CoverageCell, Metric, Prefecture, Sector, Specialty } from '$lib/atlas/types';
 	import {
 		buildIndex,
@@ -218,7 +219,7 @@
 	</section>
 {:else}
 	<section class="matrix" bind:this={matrixEl} style:--tone-ink={darkIsWorse ? 'var(--ink)' : 'var(--accent-d)'} aria-labelledby={`${uid}-matrix-title`}>
-		<div class="bar"><h2 id={`${uid}-matrix-title`}>Κάλυψη ανά ειδικότητα και νομό</h2><div class="metrics" role="group" aria-label="Μετρική">{#each METRICS as item (item)}<button type="button" class:on={metric === item} aria-pressed={metric === item} onclick={() => onMetric(item)}>{METRIC_LABEL[item]}</button>{/each}</div><button type="button" class="tool" onclick={exportCsv}>CSV</button></div>
+		<div class="bar"><div class="h2row"><h2 id={`${uid}-matrix-title`}>Κάλυψη ανά ειδικότητα και νομό</h2><DataLinks dataset="coverage" {data} /></div><div class="metrics" role="group" aria-label="Μετρική">{#each METRICS as item (item)}<button type="button" class:on={metric === item} aria-pressed={metric === item} onclick={() => onMetric(item)}>{METRIC_LABEL[item]}</button>{/each}</div><button type="button" class="tool" onclick={exportCsv}>CSV</button></div>
 		<p class="readout" aria-live="polite">{readout ?? 'Επίλεξε ένα κελί για τις τιμές. Σκούρο σημαίνει μεγαλύτερη τιμή.'}</p>
 		{#if pageCount > 1}<div class="pagination"><button type="button" disabled={prefPage === 0} onclick={() => (prefPage = Math.max(0, prefPage - 1))}>Προηγούμενοι νομοί</button><span>Νομοί {pageStart} έως {pageEnd} από {prefOrder.length}</span><button type="button" disabled={prefPage >= pageCount - 1} onclick={() => (prefPage = Math.min(pageCount - 1, prefPage + 1))}>Επόμενοι νομοί</button></div>{/if}
 		<div class="scroll"><table><thead><tr><th class="corner"><button type="button" class="hbtn" onclick={() => { sortPref = null; sortSpec = null; }}>Ειδικότητα ↓ · Νομός →</button></th>{#each currentPrefOrder as pi (data.prefectures[pi].id)}{@const pref = data.prefectures[pi]}<th class="col" class:on={sortPref === pref.id}><button type="button" class="hbtn vert" onclick={() => (sortPref = sortPref === pref.id ? null : pref.id)} title={`Ταξινόμηση ειδικοτήτων κατά ${prefLabel(pref)}`}><span>{pref.name}</span></button></th>{/each}</tr></thead><tbody>{#each specOrder as si (data.specialties[si].id)}{@const spec = data.specialties[si]}<tr><th class="row" class:on={sortSpec === spec.id}><button type="button" class="hbtn" onclick={() => (sortSpec = sortSpec === spec.id ? null : spec.id)}>{titleCase(spec.name)}</button></th>{#each currentPrefOrder as pi (data.prefectures[pi].id)}{@const cell = values[si][pi]}{@const t = cell.unknown || cell.zero ? 0 : tone(cell.v)}<td><button type="button" class="cell" class:zero={cell.zero && !cell.unknown} class:unknown={cell.unknown} class:flag={cell.flagged} class:has={!cell.zero && !cell.unknown} style:--t={t} style:color={t > 0 ? readableText(mixOklab('#ffffff', toneHex, t)) : undefined} aria-label={describe(cell, spec, data.prefectures[pi])} onmouseenter={() => (focusedCell = { s: si, p: pi })} onfocus={() => (focusedCell = { s: si, p: pi })} onmouseleave={() => (focusedCell = null)} onclick={() => pick(cell.key)}>{cellText(cell)}</button></td>{/each}</tr>{/each}</tbody></table></div>
@@ -240,7 +241,7 @@
 	.compact-rows button, .pagination button, .tool { min-height: 44px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); color: var(--ink-2); padding: 0 0.7rem; font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
 	.compact-rows button { white-space: nowrap; }
 	.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; min-width: 0; }
-	.bar h2 { margin-right: auto; }
+	.bar .h2row { margin-right: auto; }
 	.metrics { display: inline-flex; overflow: hidden; border: 1px solid var(--line-2); border-radius: var(--r-ctl); }
 	.metrics button { min-height: 44px; border: 0; border-right: 1px solid var(--line-2); background: var(--card); color: var(--ink-2); padding: 0 0.7rem; font: inherit; font-size: 0.8rem; cursor: pointer; }
 	.metrics button:last-child { border-right: 0; }

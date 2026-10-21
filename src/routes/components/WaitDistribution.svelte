@@ -1,4 +1,6 @@
 <script lang="ts">
+	import DataLinks from './DataLinks.svelte';
+	import { filterFor } from '$lib/atlas/datasets';
 	import type { AtlasData, Selection } from '$lib/atlas/types';
 	import { SECTORS, SECTOR_LABEL } from '$lib/atlas/types';
 	import { buildIndex, fmtDay, fmtStat, parseKey, plural, providerName, selectionLabel, titleCase, toCsv, waitRows, type SortDir, type WaitOrder } from './format';
@@ -60,7 +62,7 @@
 
 <section id="atlas-waits" class="waits" aria-labelledby={`${uid}-title`}>
 	<header class="head">
-		<div><h2 id={`${uid}-title`}>Αναμονή για ραντεβού</h2><p class="sub">{selectionLabel(idx, selection)} · ημέρες από τη σάρωση της {fmtDay(data.scan.at)}</p></div>
+		<div><div class="h2row"><h2 id={`${uid}-title`}>Αναμονή για ραντεβού</h2><DataLinks dataset="waits" {data} filter={filterFor(selection)} /></div><p class="sub">{selectionLabel(idx, selection)} · ημέρες από τη σάρωση της {fmtDay(data.scan.at)}</p></div>
 		<div class="tools">
 			{#if rows.length > 1}<div class="order"><label for={`${uid}-order`}>Ταξινόμηση</label>
 				<span class="sort"><select id={`${uid}-order`} bind:value={order} onchange={() => onSortChange()}>

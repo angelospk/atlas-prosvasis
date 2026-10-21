@@ -104,6 +104,14 @@
 	touch-action: auto;
 }
 
+/* A heading with its open-data mark (DataLinks) beside it. */
+.atlas .h2row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.25rem;
+}
+
 /* Headings: Source Serif 4, upright, 600. Everything else, numbers included, is IBM Plex Sans. */
 .atlas h1,
 .atlas h2,

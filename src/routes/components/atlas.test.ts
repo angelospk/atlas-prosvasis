@@ -475,7 +475,8 @@ describe('responsive atlas contracts', () => {
 		const html = render(WaitDistribution, {
 			props: { data: waitFixture([1, 2, 4]), selection: { ...sel, prefectureId: 1, specialtyId: 1 }, onShowOnMap: noop }
 		}).body;
-		expect(html).not.toContain('aria-expanded');
+		// The rows, not the header's open-data mark (DataLinks), which is a disclosure.
+		expect(html.split('</header>')[1]).not.toContain('aria-expanded');
 		expect(html).toContain('<select');
 		expect(html).toContain('Δες στον χάρτη');
 		expect(html).not.toContain('section-kicker');
@@ -1349,5 +1350,46 @@ describe('declared clinic, no e-booking (phase 2)', () => {
 	it('no clinic name is ever shown, only units', () => {
 		const html = render(PrefectureChoropleth, { props: { data: lefkada, boundaries, selection: { ...pub, prefectureId: 34 }, onSelect: () => {} } }).body;
 		expect(html).not.toContain('cDoorId');
+	});
+});
+
+describe('open data links', () => {
+	const real = JSON.parse(readFileSync('static/atlas.json', 'utf8')) as AtlasReport;
+	const noop = () => {};
+
+	it('a section mark gives the CSV and JSON for the chosen specialty, and the way to all data', async () => {
+		const DataLinks = (await import('./DataLinks.svelte')).default;
+		const html = render(DataLinks, { props: { dataset: 'coverage', data: real, filter: { specialtyId: 20 } } }).body;
+		expect(html).toContain('href="/data/v1/coverage/specialty-20.csv"');
+		expect(html).toContain('href="/data/v1/coverage/specialty-20.json"');
+		expect(html).toContain('href="/dedomena#coverage"');
+		expect(html).toContain('Ψυχίατρος');
+	});
+
+	it('a dataset without filters links the whole file', async () => {
+		const DataLinks = (await import('./DataLinks.svelte')).default;
+		const html = render(DataLinks, { props: { dataset: 'scans', data: real, filter: { specialtyId: 20 } } }).body;
+		expect(html).toContain('href="/data/v1/scans.csv"');
+	});
+
+	it('the nav links to /dedomena', () => {
+		const html = render(AtlasNav, { props: { data: real, selection: { mode: 'place', prefectureId: null, specialtyId: null, sectors: ['esy', 'pfy'] }, onChange: noop, onReset: noop, activeSection: 'map', onNavigate: noop } }).body;
+		expect(html).toContain('href="/dedomena"');
+	});
+
+	it('/dedomena lists every dataset, the licence and the units without a free e-booking', async () => {
+		const Page = (await import('../dedomena/+page.svelte')).default;
+		const { load } = await import('../dedomena/+page.server');
+		const data = await load({ fetch: async () => new Response(JSON.stringify(real)) } as never);
+		const html = render(Page, { props: { data } as never }).body;
+		for (const id of ['coverage', 'specialty-coverage', 'sites', 'no-free-booking', 'waits', 'pin-issues', 'scans', 'prefectures', 'specialties']) {
+			expect(html).toContain(`id="${id}"`);
+			expect(html).toContain(`href="/data/v1/${id}.csv"`);
+		}
+		expect(html).toContain('CC BY 4.0');
+		expect(html).toContain('Μονάδες χωρίς ελεύθερο ηλεκτρονικό ραντεβού');
+		expect(html).toContain('δηλωμένο ιατρείο');
+		expect(html).not.toContain('λειτουργεί');
+		expect(html).not.toContain('χωρίς ηλεκτρονικό ραντεβού');
 	});
 });

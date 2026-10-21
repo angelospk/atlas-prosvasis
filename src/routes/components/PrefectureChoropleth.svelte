@@ -1,4 +1,6 @@
 <script lang="ts">
+	import DataLinks from './DataLinks.svelte';
+	import { filterFor } from '$lib/atlas/datasets';
 	// The principal graphic, one tone per prefecture, two metrics derived from the selection:
 	// no specialty → how many specialties have a site in the prefecture (fixed classes 0–5 ·
 	// 6–10 · 11–20 · 21–30 · 31+); a specialty → its sites per 100 000 residents (fixed classes
@@ -383,7 +385,7 @@
 
 <figure class="choro">
 	<figcaption>
-		<h2>{title}</h2>
+		<div class="h2row"><h2>{title}</h2><DataLinks dataset="coverage" {data} filter={filterFor(selection)} /></div>
 		<p class="sub">{subtitle} · σάρωση {scanDate} · κάτοικοι {data.populationYear}</p>
 	</figcaption>
  <div class="metric-switch" role="group" aria-label="Μέτρηση χάρτη">

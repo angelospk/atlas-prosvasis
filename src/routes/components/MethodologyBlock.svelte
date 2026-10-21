@@ -54,7 +54,8 @@
 					πρόγραμμα. Η ημερομηνία «τελευταία φορά» δίνει μόνο μια ένδειξη. Το δηλωμένο ιατρείο δεν μετράει ποτέ ως
 					κάλυψη: δείχνει μόνο τον νομό με διαγράμμιση και τη μονάδα με κούφιο κύκλο. Τελευταίος έλεγχος:
 					<span class="strong">{fmtDateLong(report.doors.checkedAt)}</span>{#if report.doors.fullAt !== report.doors.checkedAt}{' '}(πλήρης:
-						{fmtDateLong(report.doors.fullAt)}){/if}.
+						{fmtDateLong(report.doors.fullAt)}){/if}. Η λίστα των μονάδων:
+					<a href="/dedomena#off-list">χωρίς ελεύθερο ηλεκτρονικό ραντεβού</a>.
 				</p>
 				<p>
 					Ο χάρτης σημείων δείχνει τι κλείνεται ηλεκτρονικά στην τελευταία σάρωση. Οι νομοί και τα ευρήματα
@@ -161,7 +162,7 @@
 				Σε αυτή τη σάρωση <span class="num">{fmtInt(provisional)}</span> καταχωρίσεις έχουν ακόμη λάθος θέση.
 				Οι αποστάσεις προς αυτές είναι προσωρινές και η σύνοψη το γράφει δίπλα στον αριθμό.
 			</p>
-			<p><a href="/pin-issues.csv" download>Μονάδες με λάθος θέση στον κατάλογο (CSV)</a></p>
+			<p class="h2row">Μονάδες με λάθος θέση στον κατάλογο: <a href="/data/v1/pin-issues.csv" download>CSV</a> · <a href="/data/v1/pin-issues.json" target="_blank" rel="noopener">JSON</a> · <a href="/dedomena">όλα τα δεδομένα</a></p>
 		</section>
 
 		<section>
