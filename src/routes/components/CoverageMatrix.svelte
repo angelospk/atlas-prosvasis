@@ -21,8 +21,7 @@
 		sumCounts,
 		titleCase
 	} from './format';
-	import { downloadText } from './download';
-	import { plural, toCsv } from './format';
+	import { plural } from './format';
 
 	let {
 		data,
@@ -172,11 +171,6 @@
 		return '';
 	}
 	const pick = (key: string) => onSelect(key);
-	function exportCsv() {
-		const head = ['Ειδικότητα', ...data.prefectures.map((pref) => pref.name)];
-		const body = data.specialties.map((spec, si) => [titleCase(spec.name), ...data.prefectures.map((_, pi) => cellText(values[si][pi]))]);
-		downloadText(`atlas-πίνακας-${data.scan.at.slice(0, 10)}.csv`, toCsv([head, ...body]));
-	}
 
 	// The desktop matrix mounts only after `compact` turns false, so observe it whenever it
 	// appears rather than once at mount.
@@ -219,7 +213,7 @@
 	</section>
 {:else}
 	<section class="matrix" bind:this={matrixEl} style:--tone-ink={darkIsWorse ? 'var(--ink)' : 'var(--accent-d)'} aria-labelledby={`${uid}-matrix-title`}>
-		<div class="bar"><div class="h2row"><h2 id={`${uid}-matrix-title`}>Κάλυψη ανά ειδικότητα και νομό</h2><DataLinks dataset="coverage" {data} /></div><div class="metrics" role="group" aria-label="Μετρική">{#each METRICS as item (item)}<button type="button" class:on={metric === item} aria-pressed={metric === item} onclick={() => onMetric(item)}>{METRIC_LABEL[item]}</button>{/each}</div><button type="button" class="tool" onclick={exportCsv}>CSV</button></div>
+		<div class="bar"><div class="h2row"><h2 id={`${uid}-matrix-title`}>Κάλυψη ανά ειδικότητα και νομό</h2><DataLinks dataset="coverage" {data} /></div><div class="metrics" role="group" aria-label="Μετρική">{#each METRICS as item (item)}<button type="button" class:on={metric === item} aria-pressed={metric === item} onclick={() => onMetric(item)}>{METRIC_LABEL[item]}</button>{/each}</div></div>
 		<p class="readout" aria-live="polite">{readout ?? 'Επίλεξε ένα κελί για τις τιμές. Σκούρο σημαίνει μεγαλύτερη τιμή.'}</p>
 		{#if pageCount > 1}<div class="pagination"><button type="button" disabled={prefPage === 0} onclick={() => (prefPage = Math.max(0, prefPage - 1))}>Προηγούμενοι νομοί</button><span>Νομοί {pageStart} έως {pageEnd} από {prefOrder.length}</span><button type="button" disabled={prefPage >= pageCount - 1} onclick={() => (prefPage = Math.min(pageCount - 1, prefPage + 1))}>Επόμενοι νομοί</button></div>{/if}
 		<div class="scroll"><table><thead><tr><th class="corner"><button type="button" class="hbtn" onclick={() => { sortPref = null; sortSpec = null; }}>Ειδικότητα ↓ · Νομός →</button></th>{#each currentPrefOrder as pi (data.prefectures[pi].id)}{@const pref = data.prefectures[pi]}<th class="col" class:on={sortPref === pref.id}><button type="button" class="hbtn vert" onclick={() => (sortPref = sortPref === pref.id ? null : pref.id)} title={`Ταξινόμηση ειδικοτήτων κατά ${prefLabel(pref)}`}><span>{pref.name}</span></button></th>{/each}</tr></thead><tbody>{#each specOrder as si (data.specialties[si].id)}{@const spec = data.specialties[si]}<tr><th class="row" class:on={sortSpec === spec.id}><button type="button" class="hbtn" onclick={() => (sortSpec = sortSpec === spec.id ? null : spec.id)}>{titleCase(spec.name)}</button></th>{#each currentPrefOrder as pi (data.prefectures[pi].id)}{@const cell = values[si][pi]}{@const t = cell.unknown || cell.zero ? 0 : tone(cell.v)}<td><button type="button" class="cell" class:zero={cell.zero && !cell.unknown} class:unknown={cell.unknown} class:flag={cell.flagged} class:has={!cell.zero && !cell.unknown} style:--t={t} style:color={t > 0 ? readableText(mixOklab('#ffffff', toneHex, t)) : undefined} aria-label={describe(cell, spec, data.prefectures[pi])} onmouseenter={() => (focusedCell = { s: si, p: pi })} onfocus={() => (focusedCell = { s: si, p: pi })} onmouseleave={() => (focusedCell = null)} onclick={() => pick(cell.key)}>{cellText(cell)}</button></td>{/each}</tr>{/each}</tbody></table></div>
@@ -238,7 +232,7 @@
 	.compact-rows li > div { min-width: 0; }
 	.compact-name { display: block; overflow-wrap: anywhere; font-weight: 600; }
 	.compact-number { display: block; margin-top: 0.15rem; color: var(--ink-2); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
-	.compact-rows button, .pagination button, .tool { min-height: 44px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); color: var(--ink-2); padding: 0 0.7rem; font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+	.compact-rows button, .pagination button { min-height: 44px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); color: var(--ink-2); padding: 0 0.7rem; font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
 	.compact-rows button { white-space: nowrap; }
 	.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; min-width: 0; }
 	.bar .h2row { margin-right: auto; }

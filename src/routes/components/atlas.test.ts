@@ -1402,3 +1402,32 @@ describe('version', () => {
 		expect(pkg.version).toBe('0.5.0');
 	});
 });
+
+describe('one way to the data', () => {
+	const noop = () => {};
+	const real = JSON.parse(readFileSync('static/atlas.json', 'utf8')) as AtlasReport;
+	it('no section keeps its own CSV button: the section mark gives the files', () => {
+		const html = [
+			render(WaitDistribution, { props: { data: real, selection: all, onShowOnMap: noop } }).body,
+			render(CoverageMatrix, { props: { data: real, sectors: [...SECTORS], metric: 'count', onMetric: noop, onSelect: noop } }).body,
+			render(PrefectureChoropleth, { props: { data: real, boundaries, selection: all, onSelect: noop } }).body,
+			render(SpecialtyCoverageBars, { props: { data: real, sectors: [...SECTORS], selectedSpecialtyId: 16, onSelect: noop } }).body
+		].join('\n');
+		expect(html).not.toMatch(/<button[^>]*>CSV<\/button>/);
+		expect(html).toContain('aria-label="Δεδομένα: ');
+	});
+	it('the map gives the waits file while it shows waits, the coverage file otherwise', () => {
+		const one = { ...all, specialtyId: 20 };
+		const label = (metric: 'coverage' | 'mean') => render(PrefectureChoropleth, { props: { data: real, boundaries, selection: one, onSelect: noop, metric } }).body;
+		expect(label('mean')).toContain('aria-label="Δεδομένα: Αναμονή ως το πρώτο ραντεβού"');
+		expect(label('coverage')).not.toContain('Δεδομένα: Αναμονή');
+	});
+	it('the waits list opens and closes like the coverage list: «Περισσότερες», then «Λιγότερες» stuck to the bottom', () => {
+		const props = { data: real, selection: all, onShowOnMap: noop };
+		const closed = render(WaitDistribution, { props }).body;
+		expect(closed).toMatch(/class="expand[^"]*"[^>]*>Περισσότερες<\/button>/);
+		expect(closed).not.toContain('stuck');
+		expect(closed).not.toContain('Όλες οι γραμμές');
+		expect(render(WaitDistribution, { props: { ...props, expanded: true } }).body).toMatch(/class="expand[^"]*\bstuck\b[^"]*"[^>]*>Λιγότερες<\/button>/);
+	});
+});

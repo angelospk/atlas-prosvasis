@@ -10,8 +10,7 @@
 	// is the same blue in diagonal stripes; unknown is hatched grey. Fills and strokes are inline attributes (not classes) so
 	// the SVG can be serialised as is for the PNG export. A tap or click selects the
 	// prefecture; nothing opens.
-	import type { AtlasData, PrefectureBoundaries, Selection, Sector } from '$lib/atlas/types';
-	import { SECTORS, SECTOR_LABEL } from '$lib/atlas/types';
+	import type { AtlasData, PrefectureBoundaries, Selection } from '$lib/atlas/types';
 	import {
 		boxOf,
 		buildIndex,
@@ -37,12 +36,11 @@
 		sectorsLabel,
 		specialtiesCovered,
 		titleCase,
-		toCsv,
 		type Box,
 		type Ring,
 		type Row
 	} from './format';
-	import { downloadBlob, downloadText } from './download';
+	import { downloadBlob } from './download';
 	import { prefectureWaits, WAIT_FILL as WAIT_COLORS, WAIT_LABEL, waitClass } from './waits';
 	import type { MapMetric } from '$lib/atlas/url';
 	import { fmtStat, type WaitStats } from './format';
@@ -243,44 +241,10 @@
 
 
 	// ---- exports ----
-	function sectorCols(): Sector[] {
-		return SECTORS.filter((s) => selection.sectors.includes(s));
-	}
 	function fileStem(): string {
 		const s = spec ? titleCase(spec.name).replace(/\s+/g, '-') : 'ειδικότητες';
 		return `atlas-${s}-${data.scan.at.slice(0, 10)}`;
 	}
-	function exportCsv() {
-		const cols = sectorCols();
-		const meta = [[`${title} · ${subtitle}`], [`Σάρωση ${data.scan.at.slice(0, 10)} · ${data.scan.source}`], []];
-		if (waitMode) {
-			downloadText(`${fileStem()}-${metric}.csv`, toCsv([...meta, ['Νομός', 'Με ημερομηνία', 'Πρώτο (ημέρες)', 'Μέσος (ημέρες)'], ...sortedPrefs.map((p) => { const w = waits.get(p.id); return [p.name, w?.n ?? 0, w?.min ?? null, w?.mean ?? null]; })]));
-			return;
-		}
-		if (!rateMode) {
-			const head = ['Νομός', 'Έδρα', `Πληθυσμός ${data.populationYear}`, `Ειδικότητες με σημείο (από ${specTotal})`];
-			const body = sortedPrefs.map((p) => [p.name, p.seat.label, p.population, covered.get(p.id) ?? 0]);
-			downloadText(`${fileStem()}.csv`, toCsv([...meta, head, ...body]));
-			return;
-		}
-		const head = ['Νομός', 'Έδρα', `Πληθυσμός ${data.populationYear}`, ...cols.map((s) => SECTOR_LABEL[s]), 'Σύνολο σημείων', 'Ανά 100.000', 'Πρώτο ραντεβού (δημόσια)', 'Πλησιέστερος από την έδρα (χλμ, σε ευθεία)', 'Δηλωμένο ιατρείο χωρίς ελεύθερο ηλεκτρονικό ραντεβού (μονάδες)'];
-		const body = sortedPrefs.map((p) => {
-			const r = rowByPref.get(p.id);
-			return [
-				p.name,
-				p.seat.label,
-				p.population,
-				...cols.map((s) => (r ? (r.counts[s] ?? 0) : null)),
-				r ? r.count : null,
-				r && r.per100k != null ? Math.round(r.per100k * 100) / 100 : null,
-				r?.earliestDate ? r.earliestDate.slice(0, 10) : null,
-				r && r.nearestKm != null ? r.nearestKm : null,
-				(() => { const c = idx.cellByKey.get(`${p.id}:${spec!.id}`); return c?.registeredCounts ? sectorCols().reduce((n, s) => n + (c.registeredCounts![s] ?? 0), 0) : null; })()
-			];
-		});
-		downloadText(`${fileStem()}.csv`, toCsv([...meta, head, ...body]));
-	}
-
 	let exporting = $state(false);
 	async function exportPng() {
 		if (!svgEl || exporting) return;
@@ -385,7 +349,7 @@
 
 <figure class="choro">
 	<figcaption>
-		<div class="h2row"><h2>{title}</h2><DataLinks dataset="coverage" {data} filter={filterFor(selection)} /></div>
+		<div class="h2row"><h2>{title}</h2><DataLinks dataset={waitMode ? 'waits' : 'coverage'} {data} filter={filterFor(selection)} /></div>
 		<p class="sub">{subtitle} · σάρωση {scanDate} · κάτοικοι {data.populationYear}</p>
 	</figcaption>
  <div class="metric-switch" role="group" aria-label="Μέτρηση χάρτη">
@@ -481,7 +445,6 @@
 		{/if}
 		<span class="spacer"></span>
 		<button type="button" class="tool" onclick={exportPng} disabled={exporting} title="Εικόνα PNG με τίτλο, υπόμνημα και πηγή">PNG</button>
-		<button type="button" class="tool" onclick={exportCsv} title="Οι 51 γραμμές του χάρτη">CSV</button>
 	</div>
 
 	<p class="foot">
@@ -714,13 +677,10 @@
 			margin-top: 0.5rem;
 			box-shadow: none;
 		}
-		/* The picker takes a row; PNG and CSV share the next one. */
+		/* The picker takes a row; PNG takes the next one. */
 		.tools {
 			display: grid;
-			grid-template-columns: 1fr 1fr;
-		}
-		.pick {
-			grid-column: 1 / -1;
+			grid-template-columns: 1fr;
 		}
 		.pick select {
 			max-width: none;

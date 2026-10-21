@@ -1,24 +1,24 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import DataLinks from './DataLinks.svelte';
 	import { filterFor } from '$lib/atlas/datasets';
 	import type { AtlasData, Selection } from '$lib/atlas/types';
 	import { SECTORS, SECTOR_LABEL } from '$lib/atlas/types';
-	import { buildIndex, fmtDay, fmtStat, parseKey, plural, providerName, selectionLabel, titleCase, toCsv, waitRows, type SortDir, type WaitOrder } from './format';
+	import { buildIndex, fmtDay, fmtStat, parseKey, plural, providerName, selectionLabel, titleCase, waitRows, type SortDir, type WaitOrder } from './format';
 	import { dayAxis, WAIT_FILL, WAIT_LABEL, waitClass, waitPoints, waitSamples, type WaitPoint } from './waits';
-	import { downloadText } from './download';
 	// A ranked range plot: one line per row on a shared day axis. The bar runs from the first to
 	// the last date, each dot is one day (coloured with the map's wait classes), the dark tick is
 	// the mean. A dot shows its towns and units on hover, focus or tap. A row's name opens it
 	// on the prefecture map and changes the filters; a hint above the chart says so before the tap.
 	// `order`/`dir` are bindable so a page can keep them in its link; `onSortChange` says when the reader changed them.
-	let { data, selection, onShowOnMap = (_key: string | null) => {}, onPickSpecialty = (_id: number | null) => {}, specialtyPicker = true, order = $bindable('mean'), dir = $bindable('desc'), onSortChange = () => {} }: {
+	// `expanded` shows every row; «Λιγότερες» then stays at the bottom of the screen, like the coverage list.
+	let { data, selection, onShowOnMap = (_key: string | null) => {}, onPickSpecialty = (_id: number | null) => {}, specialtyPicker = true, order = $bindable('mean'), dir = $bindable('desc'), onSortChange = () => {}, expanded = $bindable(false) }: {
 		data: AtlasData; selection: Selection; onShowOnMap?: (key: string | null) => void; onPickSpecialty?: (id: number | null) => void; specialtyPicker?: boolean;
-		order?: WaitOrder; dir?: SortDir; onSortChange?: () => void;
+		order?: WaitOrder; dir?: SortDir; onSortChange?: () => void; expanded?: boolean;
 	} = $props();
 	const uid = $props.id();
 	const idx = $derived(buildIndex(data));
 	const rows = $derived(waitRows(data, idx, selection, order, dir));
-	let showingAll = $state(false);
 	let hovered = $state<{ key: string; days: number } | null>(null);
 	let pinned = $state<{ key: string; days: number } | null>(null);
 	// A pin only counts while its dot is still on screen; a new selection elsewhere drops it.
@@ -38,7 +38,7 @@
 		const merged = plotWidth > 0 ? (r.stats.max - r.stats.min) / axis.max * plotWidth < 36 : r.stats.max - r.stats.min < axis.max * 0.06;
 		return { ...r, points, lanes, merged };
 	}));
-	const shown = $derived(showingAll ? plotted : plotted.slice(0, 12));
+	const shown = $derived(expanded ? plotted : plotted.slice(0, 12));
 	const mapKey = $derived(livePin?.key ?? (selection.specialtyId != null ? `${selection.prefectureId ?? 0}:${selection.specialtyId}` : null));
 	const pct = (days: number) => `${days / axis.max * 100}%`;
 	const cities = (point: WaitPoint) => [...new Set(point.samples.map((s) => titleCase(s.provider.city) || 'Χωρίς πόλη'))].join(', ');
@@ -49,12 +49,17 @@
 	const same = (a: { key: string; days: number } | null, key: string, days: number) => a?.key === key && a.days === days;
 	// Tooltips near either end of the axis open inward so they never leave the plot.
 	const side = (days: number) => days / axis.max < 0.2 ? 'start' : days / axis.max > 0.8 ? 'end' : 'mid';
-	function exportCsv() {
-		downloadText(`atlas-αναμονή-${data.scan.at.slice(0, 10)}.csv`, toCsv([
-			['Σάρωση', data.scan.at.slice(0, 10), data.scan.source],
-			['Νομός / ειδικότητα', 'Σημεία', 'Με ημερομηνία', 'Πρώτο', 'Μέσος όρος', 'Διάμεσος', 'Μέγιστο'],
-			...rows.map((r) => [r.name, r.sites, r.stats.n, r.stats.min, r.stats.mean, r.stats.median, r.stats.max])
-		]));
+	function changeExpanded(next: boolean, button: HTMLElement) {
+		// Collapsing removes rows above the button: keep it where it was on screen, or the list
+		// scrolls away under the reader.
+		if (!next) {
+			const top = button.getBoundingClientRect().top;
+			void tick().then(() => {
+				const shift = button.getBoundingClientRect().top - top;
+				if (shift) window.scrollBy({ top: shift, behavior: 'instant' });
+			});
+		}
+		expanded = next;
 	}
 </script>
 
@@ -70,7 +75,6 @@
 					<option value="first">Πρώτο ραντεβού</option>
 				</select><button type="button" class="tool dir" aria-label={dir === 'asc' ? 'Αύξουσα σειρά' : 'Φθίνουσα σειρά'} title={dir === 'asc' ? 'Αύξουσα σειρά' : 'Φθίνουσα σειρά'} onclick={() => { dir = dir === 'asc' ? 'desc' : 'asc'; onSortChange(); }}><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" class:asc={dir === 'asc'}><path d="M8 2v11M3.5 8.5 8 13l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span>
 			</div>{/if}
-			<button class="tool" onclick={exportCsv}>CSV</button>
 		</div>
 	</header>
 	{#if rows.length === 0}
@@ -81,6 +85,8 @@
 			<span><i class="tick"></i>μέσος όρος</span>
 		</div>
 		<p class="hint">Πάτησε ένα όνομα: ανοίγει στον χάρτη και αλλάζει τα φίλτρα. Πάτησε μια τελεία: πόλεις και σημεία.</p>
+		<!-- Block flow, not a grid: a sticky «Λιγότερες» may only travel inside its containing block. -->
+		<div class="fold">
 		<div class="chart">
 			<div class="axis" aria-hidden="true">
 				<span></span>
@@ -126,7 +132,8 @@
 				{/each}
 			</ol>
 		</div>
-		{#if rows.length > 12}<button class="more tool" aria-expanded={showingAll} onclick={() => showingAll = !showingAll}>{showingAll ? 'Λιγότερες γραμμές' : `Όλες οι γραμμές (${rows.length})`}</button>{/if}
+		{#if rows.length > 12}<button type="button" class="expand" class:stuck={expanded} aria-expanded={expanded} onclick={(e) => changeExpanded(!expanded, e.currentTarget)}>{expanded ? 'Λιγότερες' : 'Περισσότερες'}</button>{/if}
+		</div>
 		<details class="as-table">
 			<summary>Οι τιμές σε πίνακα</summary>
 			<div class="table-wrap">
@@ -177,6 +184,11 @@
 	.scale { position:relative; height:100%; margin-inline:10px; } .scale span { position:absolute; bottom:0; transform:translateX(-50%); font-variant-numeric:tabular-nums; }
 	.first-head,.mean-head { text-align:right; }
 	.list { list-style:none; padding:0; margin:0; }
+	.fold { min-width:0; }
+	.fold > .expand { margin-top:.7rem; }
+	/* While the list is open, «Λιγότερες» stays at the bottom of the screen until the list ends. */
+	.expand.stuck { position:sticky; bottom:max(12px, env(safe-area-inset-bottom)); z-index:4; box-shadow:var(--shadow); }
+	.expand { min-height:44px; padding:0 .85rem; border:1px solid var(--line-2); border-radius:var(--r-ctl); background:var(--card); color:var(--ink-2); font:inherit; font-size:.84rem; font-weight:600; cursor:pointer; }
 	.row { display:grid; grid-template-columns:var(--cols); gap:1.2rem; align-items:center; padding:.35rem 0; border-bottom:1px solid var(--paper-2); }
 	.row:last-child { border-bottom:0; }
 	.name { display:flex; flex-direction:column; min-width:0; } .name h3 { font:600 .9rem var(--sans); overflow-wrap:anywhere; } .meta { display:flex; align-items:center; gap:.4rem; font-size:.7rem; color:var(--ink-3); } .mix { display:inline-flex; gap:2px; }
@@ -199,7 +211,7 @@
 	.avg,.first { text-align:right; white-space:nowrap; } .avg strong,.first strong { font-size:1.15rem; font-weight:600; font-variant-numeric:tabular-nums; } .first strong { color:var(--ink-2); font-weight:500; } .avg small,.first small { margin-left:.2rem; font-size:.72rem; color:var(--ink-3); }
 	.actions { display:flex; gap:1rem; align-items:end; flex-wrap:wrap; } .actions label { display:grid; gap:.35rem; font-size:.78rem; min-width:0; flex:1; max-width:400px; }
 	select { width:100%; min-width:0; height:44px; border:1px solid var(--line-2); border-radius:var(--r-ctl); padding:0 .6rem; color:var(--ink); background:var(--card); font:inherit; font-size:16px; }
-	.tool { min-height:44px; padding:.5rem .9rem; background:var(--card); border:1px solid var(--line-2); border-radius:var(--r-ctl); font-size:.78rem; font-weight:500; } .tool:disabled { opacity:.5; cursor:default; } .more { justify-self:start; } .map-action { background:var(--accent); color:white; border-color:var(--accent); }
+	.tool { min-height:44px; padding:.5rem .9rem; background:var(--card); border:1px solid var(--line-2); border-radius:var(--r-ctl); font-size:.78rem; font-weight:500; } .tool:disabled { opacity:.5; cursor:default; } .map-action { background:var(--accent); color:white; border-color:var(--accent); }
 	.empty { padding:1.5rem; background:var(--paper-2); }
 	.as-table summary { cursor:pointer; min-height:44px; display:flex; align-items:center; font-size:.82rem; font-weight:500; color:var(--accent-d); }
 	.table-wrap { max-height:420px; overflow:auto; border:1px solid var(--line); background:var(--card); }

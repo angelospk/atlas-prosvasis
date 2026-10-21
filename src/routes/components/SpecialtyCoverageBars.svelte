@@ -4,9 +4,7 @@
 	// sectors). Horizontal bars, the gaps first: the shortest bar is the story. Eight rows,
 	// the rest behind «Όλες οι ειδικότητες».
 	import type { AtlasData, Sector } from '$lib/atlas/types';
-	import { SECTORS, SECTOR_LABEL } from '$lib/atlas/types';
-	import { buildIndex, deriveRows, fmtInt, parseKey, sectorsLabel, toCsv } from './format';
-	import { downloadText } from './download';
+	import { buildIndex, deriveRows, fmtInt, parseKey, sectorsLabel } from './format';
 
 	let {
 		data,
@@ -33,13 +31,6 @@
 	const hidden = $derived(rows.length - shown.length);
 	const missingEverywhere = $derived(rows.filter((r) => r.prefsWith === 0).length);
 
-	function exportCsv() {
-		const cols = SECTORS.filter((s) => sectors.includes(s));
-		const head = ['Ειδικότητα', `Νομοί με σημείο (από ${total})`, 'Έδρες πάνω από το όριο', 'Σύνολο σημείων', ...cols.map((s) => SECTOR_LABEL[s])];
-		const body = rows.map((r) => [r.name, r.prefsWith, r.prefsFlagged ?? 0, r.count, ...cols.map((s) => r.counts[s] ?? 0)]);
-		const meta = [[`Νομοί με τουλάχιστον ένα σημείο ανά ειδικότητα · ${sectorsLabel(sectors)}`], [`Σάρωση ${data.scan.at.slice(0, 10)} · ${data.scan.source}`], []];
-		downloadText(`atlas-ειδικότητες-${data.scan.at.slice(0, 10)}.csv`, toCsv([...meta, head, ...body]));
-	}
 </script>
 
 <section class="bars" aria-labelledby="atlas-bars-title">
@@ -73,15 +64,13 @@
 		{/each}
 	</ol>
 
-	<div class="tools">
-		{#if rows.length > SHOW}
+	{#if rows.length > SHOW}
+		<div class="tools">
 			<button type="button" class="link" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
 				{expanded ? 'Λιγότερες' : `Όλες οι ειδικότητες (${fmtInt(hidden)} ακόμη)`}
 			</button>
-		{/if}
-		<span class="spacer"></span>
-		<button type="button" class="tool" onclick={exportCsv}>CSV</button>
-	</div>
+		</div>
+	{/if}
 </section>
 
 <style>
@@ -192,9 +181,6 @@
 		align-items: center;
 		gap: 0.6rem;
 	}
-	.spacer {
-		flex: 1;
-	}
 	.link {
 		background: none;
 		border: 0;
@@ -210,21 +196,6 @@
 	}
 	.link:hover {
 		text-decoration-color: var(--accent);
-	}
-	.tool {
-		background: var(--card);
-		border: 1px solid var(--line-2);
-		border-radius: var(--r-ctl);
-		padding: 0.4rem 0.8rem;
-		font-size: 0.82rem;
-		font-weight: 600;
-		letter-spacing: 0.02em;
-		color: var(--ink-2);
-		cursor: pointer;
-	}
-	.tool:hover {
-		border-color: var(--ink-3);
-		color: var(--ink);
 	}
 	@media (max-width: 719px) {
 		.row {
