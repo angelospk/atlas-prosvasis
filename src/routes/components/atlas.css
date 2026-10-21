@@ -149,10 +149,12 @@
 .atlas .smark.esy {
 	background: var(--ink);
 	border-color: var(--ink);
+	border-radius: 50%;
 }
 .atlas .smark.pfy {
 	background: var(--accent);
 	border-color: var(--accent);
+	border-radius: 50%;
 }
 .atlas .smark.eopyy {
 	background: var(--card);
@@ -199,6 +201,17 @@
 .atlas-pin.private > span {
 	border-color: #526776;
 	background: #ffffff;
+}
+/* Public units are circles: filled = bookable now, hollow = offered or a declared clinic,
+   with no e-booking now. Private and ΕΟΠΥΥ doctors stay squares. */
+.atlas-pin.esy > span,
+.atlas-pin.pfy > span {
+	border-radius: 50%;
+}
+.atlas-pin.esy.off > span,
+.atlas-pin.pfy.off > span {
+	background: #ffffff;
+	border-width: 2.5px;
 }
 /* Ministry pin missing or wrong: the town centre stands in. A dashed ring says so. */
 .atlas-pin.approx > span {

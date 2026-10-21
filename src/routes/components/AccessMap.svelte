@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Linked map. Leaflet touches `window` at import, so it is loaded in onMount only; the
-	// `L` namespace is a type-only import. No choropleth: providers as the four sector marks,
-	// prefecture seats as open circles, and for the selected cell one thin dashed line from the
+	// `L` namespace is a type-only import. No choropleth: providers as the four sector marks
+	// (public units: a filled circle when bookable now, a hollow one when only offered or
+	// declared), prefecture seats as small grey circles, and for the selected cell one thin dashed line from the
 	// seat to its nearest provider with the km on it.
 	import { onMount } from 'svelte';
 	import type * as Leaflet from 'leaflet';
@@ -9,7 +10,8 @@
 	import 'leaflet.markercluster/dist/MarkerCluster.css';
 	import type { AtlasData, Provider, Selection } from '$lib/atlas/types';
 	import { SECTORS } from '$lib/atlas/types';
-	import { buildIndex, mapFrame, notBookableNow, offeredIds, providerName, cellKey, fmtKm, nearestFor, parseKey, prefLabel, providersIn, SECTOR_SHORT, titleCase } from './format';
+	import { buildIndex, mapFrame, offeredIds, providerName, cellKey, fmtDayShort, fmtKm, lastBookableText, nearestFor, parseKey, prefLabel, providerDate, providersIn, registeredIds, registeredOnlyIn, SECTOR_SHORT, siteState } from './format';
+	import StateLegend from './StateLegend.svelte';
 
 	let {
 		data,
@@ -32,8 +34,9 @@
 	// everything inside the selected prefecture (narrowed to a specialty when one is chosen).
 	const shown = $derived.by((): Provider[] => {
 		const { mode, prefectureId, specialtyId, sectors } = selection;
-		if (mode === 'specialty') return specialtyId == null ? [] : providersIn(idx, null, specialtyId, sectors);
-		if (specialtyId != null) return providersIn(idx, prefectureId, specialtyId, sectors);
+		// A specialty also brings its declared-only units (hollow): they show, they never count.
+		if (mode === 'specialty') return specialtyId == null ? [] : [...providersIn(idx, null, specialtyId, sectors), ...registeredOnlyIn(idx, null, specialtyId, sectors)];
+		if (specialtyId != null) return [...providersIn(idx, prefectureId, specialtyId, sectors), ...registeredOnlyIn(idx, prefectureId, specialtyId, sectors)];
 		return data.providers.filter((p) => sectors.includes(p.sector) && (prefectureId == null || p.prefectureId === prefectureId));
 	});
 	const located = $derived(shown.filter((p) => p.lat != null && p.lon != null));
@@ -69,8 +72,9 @@
 	const reduced = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 	function iconFor(p: Provider, selected: boolean) {
+		const off = siteState(p, selection.specialtyId) === 'off';
 		return L!.divIcon({
-			className: `atlas-pin ${p.sector}${p.approx ? ' approx' : ''}${selected ? ' sel' : ''}`,
+			className: `atlas-pin ${p.sector}${off ? ' off' : ''}${p.approx ? ' approx' : ''}${selected ? ' sel' : ''}`,
 			html: '<span></span>',
 			iconSize: [12, 12],
 			iconAnchor: [6, 6]
@@ -79,8 +83,20 @@
 
 	function keyFor(p: Provider): string | null {
 		if (p.prefectureId == null) return null;
-		const spec = selection.specialtyId != null && offeredIds(p).includes(selection.specialtyId) ? selection.specialtyId : offeredIds(p)[0];
+		const ids = [...offeredIds(p), ...registeredIds(p)];
+		const spec = selection.specialtyId != null && ids.includes(selection.specialtyId) ? selection.specialtyId : ids[0];
 		return spec == null ? null : cellKey(p.prefectureId, spec);
+	}
+
+	/** « · ηλεκτρονικό ραντεβού από 2 Νοε» / « · τελευταία φορά με ηλεκτρονικό ραντεβού: ποτέ». */
+	function stateText(p: Provider): string {
+		const sid = selection.specialtyId;
+		if (sid == null) return '';
+		if (siteState(p, sid) === 'on') {
+			const d = providerDate(p, sid);
+			return ` · ηλεκτρονικό ραντεβού${d ? ` από ${fmtDayShort(d)}` : ''}`;
+		}
+		return siteState(p, sid) === 'off' ? ` · ${lastBookableText(p, sid)}` : '';
 	}
 
 	function drawProviders() {
@@ -95,10 +111,10 @@
 				L!.divIcon({ className: 'atlas-cluster', html: `<span>${c.getChildCount()}</span>`, iconSize: [26, 26] })
 		});
 		for (const p of located) {
-			const inSel = !!selKey && p.prefectureId === selKey.prefectureId && offeredIds(p).includes(selKey.specialtyId);
+			const inSel = !!selKey && p.prefectureId === selKey.prefectureId && siteState(p, selKey.specialtyId) != null;
 			const m = L.marker([p.lat!, p.lon!], { icon: iconFor(p, inSel), keyboard: false });
 			const where = p.prefectureId != null ? prefLabel(idx.prefById.get(p.prefectureId)) : '';
-			m.bindTooltip(`${providerName(p)}${where ? ` · ${where}` : ''}${p.approx ? ' · θέση περίπου' : ''}${selection.specialtyId != null && notBookableNow(p, selection.specialtyId) ? ' · χωρίς ανοιχτό πρόγραμμα αυτή την εβδομάδα' : ''}`, {
+			m.bindTooltip(`${providerName(p)}${where ? ` · ${where}` : ''}${p.approx ? ' · θέση περίπου' : ''}${stateText(p)}`, {
 				direction: 'top',
 				offset: [0, -6],
 				className: 'atlas-km'
@@ -202,8 +218,9 @@
 		const p = focusSite ? idx.provById.get(focusSite.id) : null;
 		if (!p || p.lat == null || p.lon == null) return;
 		const where = p.prefectureId != null ? prefLabel(idx.prefById.get(p.prefectureId)) : '';
-		focusLayer = L.marker([p.lat, p.lon], { icon: L.divIcon({ className: `atlas-pin ${p.sector} focus`, html: '<span></span>', iconSize: [16, 16], iconAnchor: [8, 8] }), keyboard: false, zIndexOffset: 1000 })
-			.bindTooltip(`${providerName(p)}${where ? ` · ${where}` : ''}${p.approx ? ' · θέση περίπου' : ''}`, { direction: 'top', offset: [0, -9], className: 'atlas-km', permanent: true })
+		const off = siteState(p, selection.specialtyId) === 'off' ? ' off' : '';
+		focusLayer = L.marker([p.lat, p.lon], { icon: L.divIcon({ className: `atlas-pin ${p.sector}${off} focus`, html: '<span></span>', iconSize: [16, 16], iconAnchor: [8, 8] }), keyboard: false, zIndexOffset: 1000 })
+			.bindTooltip(`${providerName(p)}${where ? ` · ${where}` : ''}${p.approx ? ' · θέση περίπου' : ''}${stateText(p)}`, { direction: 'top', offset: [0, -9], className: 'atlas-km', permanent: true })
 			.addTo(map);
 		map.flyTo([p.lat, p.lon], Math.max(map.getZoom(), 13), { animate: !reduced(), duration: 0.6 });
 	}
@@ -277,6 +294,7 @@
 		<div class="map" bind:this={mapEl} role="region" aria-label="Χάρτης παρόχων"></div>
 		{#if moved}<button type="button" class="home" onclick={goHome}><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M1 4.5V1h3.5M11 4.5V1H7.5M1 7.5V11h3.5M11 7.5V11H7.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>{homeLabel}</button>{/if}
 	</div>
+	<StateLegend publicOnly={selection.sectors.every((s) => s === 'esy' || s === 'pfy')} />
 	<figcaption class="legend">
 		{#each SECTORS as s (s)}
 			<span class="lg" class:dim={!selection.sectors.includes(s)}><span class="smark {s}" aria-hidden="true"></span>{SECTOR_SHORT[s]}</span>

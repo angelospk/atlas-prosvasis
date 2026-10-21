@@ -205,6 +205,9 @@ export interface AtlasIndex {
 	provBySpec: Map<number, Provider[]>;
 	/** Providers per prefecture × specialty (cellKey), in provBySpec order. */
 	provByCell: Map<string, Provider[]>;
+	/** Declared clinic, nothing offered (registeredOnly), per specialty and per cellKey. */
+	regBySpec: Map<number, Provider[]>;
+	regByCell: Map<string, Provider[]>;
 	population: number;
 }
 
@@ -220,7 +223,20 @@ export function buildIndex(data: AtlasData): AtlasIndex {
 	const cellByKey = new Map(data.cells.map((c) => [cellKey(c.prefectureId, c.specialtyId), c]));
 	const provBySpec = new Map<number, Provider[]>();
 	const provByCell = new Map<string, Provider[]>();
+	const regBySpec = new Map<number, Provider[]>();
+	const regByCell = new Map<string, Provider[]>();
+	const push = <K>(m: Map<K, Provider[]>, k: K, p: Provider) => {
+		const arr = m.get(k);
+		if (arr) arr.push(p);
+		else m.set(k, [p]);
+	};
 	for (const p of data.providers) {
+		const offered = offeredIds(p);
+		for (const s of registeredIds(p)) {
+			if (offered.includes(s)) continue;
+			push(regBySpec, s, p);
+			if (p.prefectureId != null) push(regByCell, cellKey(p.prefectureId, s), p);
+		}
 		for (const s of offeredIds(p)) {
 			const arr = provBySpec.get(s);
 			if (arr) arr.push(p);
@@ -234,7 +250,7 @@ export function buildIndex(data: AtlasData): AtlasIndex {
 	}
 	let population = 0;
 	for (const p of data.prefectures) population += p.population;
-	const idx = { prefById, specById, provById, cellByKey, provBySpec, provByCell, population };
+	const idx = { prefById, specById, provById, cellByKey, provBySpec, provByCell, regBySpec, regByCell, population };
 	indexes.set(data, idx);
 	return idx;
 }
@@ -247,6 +263,79 @@ export function offeredIds(p: Provider): number[] {
 /** Offered, but no open schedule in this scan. */
 export function notBookableNow(p: Provider, specialtyId: number): boolean {
 	return offeredIds(p).includes(specialtyId) && !p.specialtyIds.includes(specialtyId);
+}
+
+/** Specialties with a declared clinic (public units, schema 3); [] for older data. */
+export function registeredIds(p: Provider): number[] {
+	return p.registeredSpecialtyIds ?? [];
+}
+
+export type SiteState = 'on' | 'off';
+/** on = bookable in this scan; off = offered in the last 4 scans or a declared clinic, not
+ *  bookable now; null = neither. Without a specialty: on when anything is bookable now. */
+export function siteState(p: Provider, specialtyId: number | null): SiteState | null {
+	if (specialtyId == null) return p.specialtyIds.length ? 'on' : offeredIds(p).length || registeredIds(p).length ? 'off' : null;
+	if (p.specialtyIds.includes(specialtyId)) return 'on';
+	return offeredIds(p).includes(specialtyId) || registeredIds(p).includes(specialtyId) ? 'off' : null;
+}
+
+/** «τελευταία φορά με ηλεκτρονικό ραντεβού: 11 Οκτ» or «… ποτέ» (null in the data), for an
+ *  off site; data without the date (before schema 3) says only that it is off now. */
+export function lastBookableText(p: Provider, specialtyId: number): string {
+	const key = String(specialtyId);
+	if (!p.lastBookable || !(key in p.lastBookable)) return 'χωρίς ηλεκτρονικό ραντεβού αυτή τη στιγμή';
+	const d = p.lastBookable[key];
+	return `τελευταία φορά με ηλεκτρονικό ραντεβού: ${d ? fmtDayShort(d) : 'ποτέ'}`;
+}
+
+/** Sites with a declared clinic for the specialty and nothing offered (no coverage), in `sectors`. */
+export function registeredOnlyIn(idx: AtlasIndex, prefectureId: number | null, specialtyId: number, sectors: readonly Sector[]): Provider[] {
+	const all = (prefectureId == null ? idx.regBySpec.get(specialtyId) : idx.regByCell.get(cellKey(prefectureId, specialtyId))) ?? [];
+	return all.filter((p) => sectors.includes(p.sector));
+}
+
+export type PrefState = 'booking' | 'registered' | 'none';
+/** booking = a site offers the specialty (last 4 scans, the coverage basis); registered = none
+ *  does, but a public unit has a declared clinic; none = neither. */
+export function prefectureState(cell: CoverageCell | undefined, sectors: readonly Sector[]): PrefState {
+	if (!cell) return 'none';
+	if (sumCounts(cell.counts, sectors) > 0) return 'booking';
+	return cell.registeredCounts && sumCounts(cell.registeredCounts, sectors) > 0 ? 'registered' : 'none';
+}
+
+/** «στο Γενικό Νοσοκομείο…», «στην Τοπική Μονάδα…»: the article follows the unit's first word. */
+function atUnit(p: Provider): string {
+	const name = providerName(p);
+	const bare = name.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('el');
+	return /^(τοπικη|πολυδυναμη|μοναδα|κλινικη|ψυχιατρικη|τομυ)/.test(bare) ? `στην ${name}` : `στο ${name}`;
+}
+
+/** The prefecture card in one sentence: «Καρδιολόγος, Λευκάδα: ηλεκτρονικό ραντεβού στο Γενικό
+ *  Νοσοκομείο Λευκάδας, από 2 Νοε.» Clinic names are never published: units and counts only. */
+export function prefectureSentence(idx: AtlasIndex, prefectureId: number, specialtyId: number, sectors: readonly Sector[]): string {
+	const spec = idx.specById.get(specialtyId);
+	const pref = idx.prefById.get(prefectureId);
+	const head = `${spec ? titleCase(spec.name) : ''}, ${pref?.name ?? ''}`;
+	const sites = providersIn(idx, prefectureId, specialtyId, sectors);
+	const on = sites.filter((p) => p.specialtyIds.includes(specialtyId));
+	if (on.length) {
+		const dated = on.map((p) => ({ p, d: providerDate(p, specialtyId) })).sort((a, b) => (a.d ?? '9').localeCompare(b.d ?? '9'));
+		const first = dated[0];
+		const where = on.length === 1 ? atUnit(first.p) : `σε ${on.length} σημεία`;
+		return `${head}: ηλεκτρονικό ραντεβού ${where}${first.d ? `, από ${fmtDayShort(first.d)}` : ''}.`;
+	}
+	const isPub = (p: Provider) => p.sector === 'esy' || p.sector === 'pfy';
+	// Offered in the last 4 scans, no open schedule now: say when it last was, not «δηλωμένο».
+	if (sites.length === 1) {
+		const d = sites[0].lastBookable?.[String(specialtyId)];
+		const at = isPub(sites[0]) ? `${atUnit(sites[0])} ` : '';
+		return `${head}: ${at ? `υπάρχει δημόσια δομή ${at.trim()}` : 'υπάρχει 1 σημείο στον κατάλογο'}, αλλά δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή${d ? ` (τελευταία φορά: ${fmtDayShort(d)})` : ''}.`;
+	}
+	if (sites.length) return `${head}: υπάρχουν ${sites.length} σημεία στον κατάλογο, αλλά κανένα δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή.`;
+	const off = registeredOnlyIn(idx, prefectureId, specialtyId, sectors);
+	if (off.length === 1) return `${head}: υπάρχει δηλωμένο ιατρείο ${atUnit(off[0])}, αλλά δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή.`;
+	if (off.length > 1) return `${head}: υπάρχουν δηλωμένα ιατρεία σε ${off.length} μονάδες, αλλά καμία δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή.`;
+	return `${head}: καμία ${sectors.every((s) => s === 'esy' || s === 'pfy') ? 'δημόσια ' : ''}δομή στον κατάλογο ηλεκτρονικών ραντεβού.`;
 }
 
 /** Each site of a selection once (whatever its specialties): the unit of «μοναδικά σημεία». */

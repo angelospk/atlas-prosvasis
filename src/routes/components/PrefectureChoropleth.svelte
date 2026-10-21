@@ -4,7 +4,8 @@
 	// 6–10 · 11–20 · 21–30 · 31+); a specialty → its sites per 100 000 residents (fixed classes
 	// 0 · >0–1 · >1–2 · >2–4 · >4). Fixed classes so this week's map can be laid next to last
 	// week's. Pure SVG, projected here (equirectangular, cos 38.5°). Zero is paper with a brick
-	// outline, a real absence, not a light tone; unknown is hatched. Fills and strokes are inline attributes (not classes) so
+	// outline, a real absence, not a light tone; zero with a declared public clinic (no e-booking)
+	// is the same blue in diagonal stripes; unknown is hatched grey. Fills and strokes are inline attributes (not classes) so
 	// the SVG can be serialised as is for the PNG export. A tap or click selects the
 	// prefecture; nothing opens.
 	import type { AtlasData, PrefectureBoundaries, Selection, Sector } from '$lib/atlas/types';
@@ -25,6 +26,8 @@
 		fmtPer100k,
 		parseKey,
 		plural,
+		prefectureSentence,
+		prefectureState,
 		prefLabel,
 		projectRings,
 		rateClass,
@@ -41,6 +44,7 @@
 	import { prefectureWaits, WAIT_FILL as WAIT_COLORS, WAIT_LABEL, waitClass } from './waits';
 	import type { MapMetric } from '$lib/atlas/url';
 	import { fmtStat, type WaitStats } from './format';
+	import StateLegend from './StateLegend.svelte';
 
 	let {
 		data,
@@ -69,6 +73,8 @@
 	const INK3 = '#526776';
 	const LINE2 = '#b6cbd8';
 	const BRICK = '#a34418';
+	/** Declared clinic, no e-booking: stripes of the «booking» blue on paper. */
+	const REG = '#5894b8';
 	type Cls = 0 | 1 | 2 | 3 | 4;
 	const CLASSES: Cls[] = [0, 1, 2, 3, 4];
 	/** Rate: zero is paper (brick outline), then four greens. */
@@ -135,6 +141,8 @@
 		row: Row | null;
 		covered: number;
 		cls: Cls | null; wait: WaitStats | null;
+		/** Coverage of the selected specialty: declared clinic only (hatched). */
+		registered: boolean;
 	}
 	const infoById = $derived.by(() => {
 		const m = new Map<number, Info>();
@@ -144,7 +152,8 @@
 			const wait = waits.get(p.id) ?? null;
 			const days = wait ? (metric === 'first' ? wait.min : wait.mean) : null;
 			const waitCls: Cls | null = days == null ? null : waitClass(days);
-			m.set(p.id, { id: p.id, name: p.name, row, covered: n, wait, cls: waitMode ? waitCls : rateMode ? rateClass(row ? row.per100k : null) : countClass(n) });
+			const registered = spec != null && prefectureState(idx.cellByKey.get(`${p.id}:${spec.id}`), selection.sectors) === 'registered';
+			m.set(p.id, { id: p.id, name: p.name, row, covered: n, wait, registered, cls: waitMode ? waitCls : rateMode ? rateClass(row ? row.per100k : null) : countClass(n) });
 		}
 		return m;
 	});
@@ -169,11 +178,13 @@
 		})
 	);
 	function isZero(id: number): boolean {
-		return !waitMode && rateMode && infoById.get(id)?.cls === 0;
+		const info = infoById.get(id);
+		return !waitMode && rateMode && info?.cls === 0 && !info.registered;
 	}
 	function fillOf(id: number): string {
 		const info = infoById.get(id);
 		if (!info) return CARD;
+		if (!waitMode && info.registered) return `url(#${uid}-reg)`;
 		if (info.cls == null) return `url(#${uid}-hatch)`;
 		return FILL[info.cls];
 	}
@@ -218,7 +229,7 @@
 		if (waitMode) parts.push(info.wait ? `${fmtStat(metric === 'first' ? info.wait.min : info.wait.mean)} ημέρες · ${info.wait.n} σημεία με ημερομηνία` : 'χωρίς ημερομηνία');
 		else if (!rateMode) parts.push(`${info.covered} από ${specTotal} ειδικότητες`);
 		else if (!info.row) parts.push('χωρίς μέτρηση');
-		else parts.push(info.row.count === 0 ? 'δεν καταγράφεται στον κατάλογο' : `${plural(info.row.count, 'σημείο', 'σημεία')}, ${fmtPer100k(info.row.per100k)} ανά 100 χιλ.`);
+		else parts.push(info.row.count === 0 ? (info.registered ? 'δηλωμένο ιατρείο, χωρίς ηλεκτρονικό ραντεβού' : 'δεν καταγράφεται στον κατάλογο') : `${plural(info.row.count, 'σημείο', 'σημεία')}, ${fmtPer100k(info.row.per100k)} ανά 100 χιλ.`);
 		return parts.join(' · ');
 	}
 	// Hovered or focused first; otherwise the selected prefecture, so a tap on a phone (no hover)
@@ -250,7 +261,7 @@
 			downloadText(`${fileStem()}.csv`, toCsv([...meta, head, ...body]));
 			return;
 		}
-		const head = ['Νομός', 'Έδρα', `Πληθυσμός ${data.populationYear}`, ...cols.map((s) => SECTOR_LABEL[s]), 'Σύνολο σημείων', 'Ανά 100.000', 'Πρώτο ραντεβού (δημόσια)', 'Πλησιέστερος από την έδρα (χλμ, σε ευθεία)'];
+		const head = ['Νομός', 'Έδρα', `Πληθυσμός ${data.populationYear}`, ...cols.map((s) => SECTOR_LABEL[s]), 'Σύνολο σημείων', 'Ανά 100.000', 'Πρώτο ραντεβού (δημόσια)', 'Πλησιέστερος από την έδρα (χλμ, σε ευθεία)', 'Δηλωμένο ιατρείο χωρίς ηλεκτρονικό ραντεβού (μονάδες)'];
 		const body = sortedPrefs.map((p) => {
 			const r = rowByPref.get(p.id);
 			return [
@@ -261,7 +272,8 @@
 				r ? r.count : null,
 				r && r.per100k != null ? Math.round(r.per100k * 100) / 100 : null,
 				r?.earliestDate ? r.earliestDate.slice(0, 10) : null,
-				r && r.nearestKm != null ? r.nearestKm : null
+				r && r.nearestKm != null ? r.nearestKm : null,
+				(() => { const c = idx.cellByKey.get(`${p.id}:${spec!.id}`); return c?.registeredCounts ? sectorCols().reduce((n, s) => n + (c.registeredCounts![s] ?? 0), 0) : null; })()
 			];
 		});
 		downloadText(`${fileStem()}.csv`, toCsv([...meta, head, ...body]));
@@ -287,7 +299,8 @@
 			const m = 48;
 			const mapW = cw - 2 * m;
 			const mapH = Math.round((mapW * H) / W);
-			const lines = classCounts.unknown > 0 ? CLASSES.length + 1 : CLASSES.length;
+			const regN = rateMode && !waitMode ? [...infoById.values()].filter((i) => i.registered).length : 0;
+			const lines = CLASSES.length + (classCounts.unknown > 0 ? 1 : 0) + (regN > 0 ? 1 : 0);
 			const legendH = Math.ceil(lines / 2) * 24 + 16;
 			const ch = m + 40 + 26 + 12 + mapH + 16 + legendH + 44 + m;
 			const canvas = document.createElement('canvas');
@@ -315,7 +328,8 @@
 			URL.revokeObjectURL(url);
 			// Legend: two columns.
 			const ly = mapY + mapH + 16;
-			const entries: { fill: string | null; text: string }[] = CLASSES.map((c) => ({ fill: FILL[c], text: `${CLASS_TEXT[c]} · ${classCounts.counts[c]} νομοί` }));
+			const entries: { fill: string | null; text: string; reg?: boolean }[] = CLASSES.map((c) => ({ fill: FILL[c], text: `${CLASS_TEXT[c]} · ${classCounts.counts[c] - (c === 0 ? regN : 0)} νομοί` }));
+			if (regN > 0) entries.push({ fill: PAPER, reg: true, text: `δηλωμένο ιατρείο, χωρίς ηλεκτρονικό ραντεβού · ${regN} νομοί` });
 			if (classCounts.unknown > 0) entries.push({ fill: null, text: `χωρίς μέτρηση · ${classCounts.unknown}` });
 			ctx.font = `400 14px ${SANS}`;
 			entries.forEach((e, i) => {
@@ -325,9 +339,24 @@
 				const y = ly + rowI * 24;
 				ctx.fillStyle = e.fill ?? CARD;
 				ctx.fillRect(x, y, 20, 14);
-				ctx.strokeStyle = e.fill === PAPER ? BRICK : LINE2;
+				ctx.strokeStyle = e.reg ? REG : e.fill === PAPER ? BRICK : LINE2;
 				ctx.lineWidth = 1;
 				ctx.strokeRect(x + 0.5, y + 0.5, 19, 13);
+				if (e.reg) {
+					ctx.save();
+					ctx.beginPath();
+					ctx.rect(x, y, 20, 14);
+					ctx.clip();
+					ctx.strokeStyle = REG;
+					ctx.lineWidth = 2;
+					for (let d = -14; d < 20; d += 5) {
+						ctx.beginPath();
+						ctx.moveTo(x + d, y + 14);
+						ctx.lineTo(x + d + 14, y);
+						ctx.stroke();
+					}
+					ctx.restore();
+				}
 				if (e.fill == null) {
 					ctx.strokeStyle = LINE2;
 					for (let d = -14; d < 20; d += 4) {
@@ -377,6 +406,10 @@
 					<rect width="4" height="4" fill={CARD} />
 					<rect width="1" height="4" fill={LINE2} />
 				</pattern>
+				<pattern id="{uid}-reg" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+					<rect width="5" height="5" fill={PAPER} />
+					<rect width="2" height="5" fill={REG} />
+				</pattern>
 			</defs>
 
 			<!-- Sea is card so a zero prefecture (paper + brick) still reads as land. -->
@@ -411,11 +444,15 @@
 			<div class="tip" role="status">
 				<b>{prefLabel(idx.prefById.get(activeInfo.id))}</b>
 				<span class="muted">{rateMode && spec ? `${titleCase(spec.name)} · ` : ''}{sectorsLabel(selection.sectors)}</span>
+				{#if spec}<p class="say">{prefectureSentence(idx, activeInfo.id, spec.id, selection.sectors)}</p>{/if}
 				{@render figures(activeInfo)}
 			</div>
 		{/if}
 	</div>
 
+	{#if rateMode && !waitMode}
+		<StateLegend publicOnly={selection.sectors.every((s) => s === 'esy' || s === 'pfy')} />
+	{/if}
 	<div class="legend" aria-label="Υπόμνημα">
 		{#each CLASSES as c (c)}
 			<span class="lg">
@@ -538,6 +575,11 @@
 	.tip b {
 		font-size: 0.98rem;
 		font-weight: 600;
+	}
+	.say {
+		margin: 0.2rem 0 0;
+		color: var(--ink);
+		line-height: 1.35;
 	}
 	.muted {
 		color: var(--ink-3);

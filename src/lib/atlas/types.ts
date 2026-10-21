@@ -59,6 +59,12 @@ export interface Provider {
 	specialtyIds: number[];
 	/** Specialties offered: listed in any of the last 4 scans (schema 2). Older data: absent, read specialtyIds. */
 	offeredSpecialtyIds?: number[];
+	/** Public units only: specialties with a declared clinic in the Ministry's list (schema 3). A
+	 *  declared clinic is not proof of booking and never counts as coverage. Older data: absent. */
+	registeredSpecialtyIds?: number[];
+	/** Offered or declared but not bookable now: specialty id → the last scan date it was
+	 *  bookable, null = in no scan (schema 3). */
+	lastBookable?: Record<string, string | null>;
 	/** Hospitals/centres only: first free appointment at scan time, ISO (any specialty). */
 	firstDate: string | null;
 	/** First free appointment per specialty id (as string key), ISO. Prefer this. */
@@ -72,6 +78,8 @@ export interface CoverageCell {
 	prefectureId: number;
 	specialtyId: number;
 	counts: SectorCounts;
+	/** Public units with a declared clinic and nothing offered for the specialty (schema 3). */
+	registeredCounts?: SectorCounts;
 	/** Providers per 100,000 residents (all sectors). */
 	per100k: number;
 	/** Soonest first-free date among this prefecture's providers (all sectors), ISO, or null. */
@@ -93,6 +101,8 @@ export interface AtlasData {
 	specialties: Specialty[];
 	providers: Provider[];
 	cells: CoverageCell[];
+	/** The declared-clinic check (schema 3): last full check and last check of any kind, ISO dates. */
+	doors?: { fullAt: string; checkedAt: string } | null;
 }
 
 export type Mode = 'place' | 'specialty';

@@ -41,7 +41,12 @@ import {
 	toCsv,
 	pinIssuesCsv,
 	provisionalPinIds,
-	mapFrame
+	mapFrame,
+	siteState,
+	lastBookableText,
+	registeredOnlyIn,
+	prefectureState,
+	prefectureSentence
 } from './format';
 import SelectionBar from './SelectionBar.svelte';
 import AtlasNav from './AtlasNav.svelte';
@@ -1217,5 +1222,130 @@ describe('scan date and sticky collapse (2026-10-21)', () => {
 		const props = { data: wide, selection: sel, sort: 'count' as const, onSort: noop, selectedKey: null, onSelect: noop, compact: true, onExpandedChange: noop };
 		expect(render(CoverageList, { props: { ...props, expanded: true } }).body).toMatch(/class="expand[^"]*\bstuck\b[^"]*"[^>]*>Λιγότερες/);
 		expect(render(CoverageList, { props: { ...props, expanded: false } }).body).not.toContain('stuck');
+	});
+});
+
+describe('declared clinic, no e-booking (phase 2)', () => {
+	// Λευκάδα (34). Καρδιολόγος 16: bookable now. Οφθαλμίατρος 28: offered (last 4 scans), last
+	// bookable 11/10. Ψυχίατρος 44: a declared clinic only, never bookable. Παιδίατρος 32: nothing.
+	const gn = {
+		...data.providers[0],
+		id: 'u124',
+		sector: 'esy' as const,
+		name: 'ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΛΕΥΚΑΔΑΣ',
+		prefectureId: 34,
+		lat: 38.83,
+		lon: 20.7,
+		approx: false,
+		specialtyIds: [16],
+		offeredSpecialtyIds: [16, 28],
+		registeredSpecialtyIds: [16, 44],
+		lastBookable: { '28': '2026-10-11', '44': null },
+		firstDate: '2026-11-02',
+		firstDates: { '16': '2026-11-02' }
+	};
+	const zero = { esy: 0, pfy: 0, eopyy: 0, private: 0 };
+	const cell = (specialtyId: number, esy: number, reg: number) => ({
+		...data.cells[0],
+		prefectureId: 34,
+		specialtyId,
+		counts: { ...zero, esy },
+		registeredCounts: { ...zero, esy: reg },
+		per100k: esy ? 4.4 : 0,
+		earliestDate: null,
+		nearestKm: esy ? 0.5 : 80,
+		nearestProviderId: esy ? 'u124' : null,
+		nearestPublicKm: esy ? 0.5 : 80,
+		nearestPublicProviderId: esy ? 'u124' : null
+	});
+	const lefkada = {
+		...report,
+		doors: { fullAt: '2026-10-21', checkedAt: '2026-10-25' },
+		providers: [gn],
+		cells: [...report.cells.filter((c) => c.prefectureId !== 34), cell(16, 1, 0), cell(28, 1, 0), cell(44, 0, 1), cell(32, 0, 0)]
+	} as AtlasReport;
+	const pidx = buildIndex(lefkada);
+	const pub: Selection = { mode: 'specialty', prefectureId: null, specialtyId: 44, sectors: ['esy', 'pfy'] };
+
+	it('a site is on where it is bookable now, off where it is offered or declared only', () => {
+		expect(siteState(gn, 16)).toBe('on');
+		expect(siteState(gn, 28)).toBe('off');
+		expect(siteState(gn, 44)).toBe('off');
+		expect(siteState(gn, 32)).toBeNull();
+		expect(siteState(gn, null)).toBe('on');
+		expect(siteState({ ...gn, specialtyIds: [] }, null)).toBe('off');
+	});
+	it('an off site says when it was last bookable, or never', () => {
+		expect(lastBookableText(gn, 28)).toBe('τελευταία φορά με ηλεκτρονικό ραντεβού: 11 Οκτ');
+		expect(lastBookableText(gn, 44)).toBe('τελευταία φορά με ηλεκτρονικό ραντεβού: ποτέ');
+		// Schema 2 data has no lastBookable: unknown is not «never».
+		expect(lastBookableText({ ...gn, lastBookable: undefined }, 28)).toBe('χωρίς ηλεκτρονικό ραντεβού αυτή τη στιγμή');
+	});
+	it('a declared clinic never adds coverage, it is listed apart', () => {
+		const only = { ...gn, id: 'u9', specialtyIds: [], offeredSpecialtyIds: [], registeredSpecialtyIds: [44], lastBookable: { '44': null } };
+		const i2 = buildIndex({ ...lefkada, providers: [gn, only] });
+		expect(providersIn(i2, 34, 44, ['esy'])).toHaveLength(0);
+		expect(registeredOnlyIn(i2, 34, 44, ['esy']).map((p) => p.id)).toEqual(['u124', 'u9']);
+		expect(registeredOnlyIn(i2, null, 44, ['esy'])).toHaveLength(2);
+		expect(registeredOnlyIn(i2, 34, 44, ['private'])).toHaveLength(0);
+		expect(registeredOnlyIn(i2, 34, 16, ['esy'])).toHaveLength(0); // bookable: not «registered only»
+	});
+	it('a prefecture is booking, declared only, or has no structure', () => {
+		expect(prefectureState(pidx.cellByKey.get('34:16'), ['esy', 'pfy'])).toBe('booking');
+		expect(prefectureState(pidx.cellByKey.get('34:44'), ['esy', 'pfy'])).toBe('registered');
+		expect(prefectureState(pidx.cellByKey.get('34:44'), ['private'])).toBe('none');
+		expect(prefectureState(pidx.cellByKey.get('34:32'), ['esy', 'pfy'])).toBe('none');
+		// Data before phase 2 has no registeredCounts.
+		expect(prefectureState({ ...data.cells[0], counts: zero }, ['esy'])).toBe('none');
+	});
+	it('the card says it in a sentence, «δηλωμένο», never «λειτουργεί» or the phone', () => {
+		const on = prefectureSentence(pidx, 34, 16, ['esy', 'pfy']);
+		expect(on).toBe('Καρδιολόγος, Λευκάδα: ηλεκτρονικό ραντεβού στο Γενικο Νοσοκομειο Λευκαδας, από 2 Νοε.');
+		const reg = prefectureSentence(pidx, 34, 44, ['esy', 'pfy']);
+		expect(reg).toBe('Ψυχίατρος, Λευκάδα: υπάρχει δηλωμένο ιατρείο στο Γενικο Νοσοκομειο Λευκαδας, αλλά δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή.');
+		expect(prefectureSentence(pidx, 34, 28, ['esy', 'pfy'])).toBe('Οφθαλμίατρος, Λευκάδα: υπάρχει δημόσια δομή στο Γενικο Νοσοκομειο Λευκαδας, αλλά δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή (τελευταία φορά: 11 Οκτ).');
+		expect(prefectureSentence(pidx, 34, 32, ['esy', 'pfy'])).toBe('Παιδίατρος, Λευκάδα: καμία δημόσια δομή στον κατάλογο ηλεκτρονικών ραντεβού.');
+		const two = buildIndex({ ...lefkada, providers: [{ ...gn, specialtyIds: [] }, { ...gn, id: 'u125', specialtyIds: [] }] });
+		expect(prefectureSentence(two, 34, 44, ['esy', 'pfy'])).toBe('Ψυχίατρος, Λευκάδα: υπάρχουν δηλωμένα ιατρεία σε 2 μονάδες, αλλά καμία δεν δίνει ηλεκτρονικό ραντεβού αυτή τη στιγμή.');
+		const tomy = buildIndex({ ...lefkada, providers: [{ ...gn, id: 'u7', sector: 'pfy', name: 'ΤΟΠΙΚΗ ΜΟΝΑΔΑ ΥΓΕΙΑΣ ΛΕΥΚΑΔΑΣ' }] });
+		expect(prefectureSentence(tomy, 34, 44, ['esy', 'pfy'])).toContain('στην Τοπικη Μοναδα Υγειας Λευκαδας');
+		for (const s of [on, reg]) expect(s).not.toMatch(/λειτουργεί|τηλεφωνικά|κλείστε/);
+	});
+	it('the prefecture map hatches a declared-only prefecture and shows the 3-line legend', () => {
+		const html = render(PrefectureChoropleth, { props: { data: lefkada, boundaries, selection: pub, onSelect: () => {} } }).body;
+		expect(html).toMatch(/fill="url\(#[^)]*-reg\)"/);
+		expect(html).toContain('ηλεκτρονικό ραντεβού');
+		expect(html).toContain('δηλωμένο ιατρείο, χωρίς ηλεκτρονικό ραντεβού');
+		expect(html).toContain('καμία δημόσια δομή');
+		// The tapped prefecture's card carries the sentence.
+		const card = render(PrefectureChoropleth, { props: { data: lefkada, boundaries, selection: { ...pub, prefectureId: 34 }, onSelect: () => {} } }).body;
+		expect(card).toContain('υπάρχει δηλωμένο ιατρείο στο Γενικο Νοσοκομειο Λευκαδας');
+	});
+	it('the open zero row of the list says there is a declared clinic', () => {
+		const html = render(CoverageList, { props: { data: lefkada, selection: { mode: 'place', prefectureId: 34, specialtyId: null, sectors: ['esy', 'pfy'] }, sort: 'count', onSort: () => {}, selectedKey: '34:44', onSelect: () => {} } }).body;
+		expect(html).toContain('υπάρχει δηλωμένο ιατρείο στο Γενικο Νοσοκομειο Λευκαδας');
+		const none = render(CoverageList, { props: { data: lefkada, selection: { mode: 'place', prefectureId: 34, specialtyId: null, sectors: ['esy', 'pfy'] }, sort: 'count', onSort: () => {}, selectedKey: '34:32', onSelect: () => {} } }).body;
+		expect(none).not.toContain('δηλωμένο');
+	});
+	it('the point map carries the same legend', () => {
+		const html = render(AccessMap, { props: { data: lefkada, selection: { ...pub, mode: 'place', prefectureId: 34 }, selectedKey: null, onSelect: () => {} } }).body;
+		expect(html).toContain('δηλωμένο ιατρείο, χωρίς ηλεκτρονικό ραντεβού');
+		expect(html).toContain('state-legend');
+	});
+	it('the gap headline splits «no structure» from «declared, no e-booking»', () => {
+		const t = insights(lefkada).find((i) => i.id === 'gap-44' || (i.id === 'gap-worst' && i.text.startsWith('Ψυχίατρος')))!.text;
+		expect(t).toMatch(/^Ψυχίατρος: σε \d+ από τους 51 νομούς δεν υπάρχει καμία δημόσια δομή στον κατάλογο ηλεκτρονικών ραντεβού· σε άλλον έναν υπάρχει δηλωμένο ιατρείο, αλλά χωρίς ηλεκτρονικό ραντεβού τον τελευταίο μήνα\./);
+		// Without declared clinics the old sentence stays.
+		expect(insights(data).find((i) => i.id === 'gap-worst')!.text).not.toContain('δηλωμένο');
+	});
+	it('methodology explains «δηλωμένο» and dates the doors check', () => {
+		const html = render(MethodologyBlock, { props: { report: lefkada } }).body;
+		expect(html).toContain('δηλωμένο ιατρείο');
+		expect(html).toContain('25 Οκτωβρίου 2026');
+		expect(html).toContain('3 εβδομάδες');
+	});
+	it('no clinic name is ever shown, only units', () => {
+		const html = render(PrefectureChoropleth, { props: { data: lefkada, boundaries, selection: { ...pub, prefectureId: 34 }, onSelect: () => {} } }).body;
+		expect(html).not.toContain('cDoorId');
 	});
 });

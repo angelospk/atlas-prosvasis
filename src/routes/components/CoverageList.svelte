@@ -21,7 +21,9 @@
 		prefLabel,
 		providerDate,
 		providerName,
+		prefectureSentence,
 		providersIn,
+		registeredOnlyIn,
 		sortRows,
 		SECTOR_SHORT,
 		titleCase
@@ -130,7 +132,9 @@
 		const nearestPref = nearest?.provider?.prefectureId != null ? (idx.prefById.get(nearest.provider.prefectureId) ?? null) : null;
 		// Where else to go: a few more sites after the nearest, each with its first date.
 		const nearby = cell && providers.length === 0 && nearest?.provider ? nearbySites(idx, cell.prefectureId, cell.specialtyId, selection.sectors, nearest.provider.id) : [];
-		return { spec, pref, providers, groups, nearest, nearestPref, nearby };
+		// A declared clinic with nothing offered: said in words, never counted (phase 2).
+		const declared = pref && providers.length === 0 && registeredOnlyIn(idx, pref.id, k.specialtyId, selection.sectors).length ? prefectureSentence(idx, pref.id, k.specialtyId, selection.sectors) : null;
+		return { spec, pref, providers, groups, nearest, nearestPref, nearby, declared };
 	});
 </script>
 
@@ -165,6 +169,7 @@
 			<div id={detailId(r.key)} class="detail">
 				{#if detail.providers.length === 0}
 					<p class="dsum">Δεν καταγράφεται σημείο{selection.sectors.length < SECTORS.length ? ' στους επιλεγμένους φορείς' : ''}.</p>
+					{#if detail.declared}<p class="dsum">{detail.declared}</p>{/if}
 					{#if detail.nearest}
 						{#if detail.nearest.unknown || !detail.nearest.provider}<p class="dnear"><span class="hatch swatch" aria-hidden="true"></span>Χωρίς μέτρηση: κανένα σημείο με θέση στους επιλεγμένους φορείς.</p>
 						{:else}<p class="dnear"><span class="dlabel">Πλησιέστερο:</span><b>{@render siteName(detail.nearest.provider)}</b><span class="muted">{titleCase(detail.nearest.provider.city)}{detail.nearestPref ? `, ${prefLabel(detail.nearestPref)}` : ''}</span><span class="km" class:flag={detail.nearest.km != null && detail.nearest.km > flagKm}>{fmtKm(detail.nearest.km)}</span><span class="muted">Από την έδρα του νομού, σε ευθεία.</span></p>{/if}

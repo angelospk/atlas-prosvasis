@@ -4,7 +4,7 @@
 import type { AtlasData, Sector, Selection } from '$lib/atlas/types';
 import { SECTORS } from '$lib/atlas/types';
 import type { MapMetric } from '$lib/atlas/url';
-import { buildIndex, cellKey, daysFromScan, fmtInt, fmtStat, plural, providerDate, providersIn, specialtiesCovered, sumCounts } from './format';
+import { buildIndex, cellKey, daysFromScan, fmtInt, fmtStat, plural, prefectureState, providerDate, providersIn, specialtiesCovered, sumCounts } from './format';
 
 export interface Insight {
 	id: string;
@@ -41,6 +41,15 @@ export function forSpecialty(name: string): string {
 }
 const pct = (a: number, b: number) => `${fmtInt(Math.round((a / b) * 100))}%`;
 
+/** N + M = the gap on the offers basis: N with no public structure, M with a declared clinic only. */
+function gapText(name: string, gap: number, m: number, total: number, residents: string): string {
+	const n = gap - m;
+	if (m === 0) return `${name}: σε ${gap} από τους ${total} νομούς δεν υπάρχει δημόσια δομή στον κατάλογο ηλεκτρονικών ραντεβού. Εκεί ζουν ${residents} κάτοικοι.`;
+	const declaredPart = 'υπάρχει δηλωμένο ιατρείο, αλλά χωρίς ηλεκτρονικό ραντεβού τον τελευταίο μήνα';
+	if (n === 0) return `${name}: σε ${m} από τους ${total} νομούς ${declaredPart}. Εκεί ζουν ${residents} κάτοικοι.`;
+	return `${name}: σε ${n} από τους ${total} νομούς δεν υπάρχει καμία δημόσια δομή στον κατάλογο ηλεκτρονικών ραντεβού· ${m === 1 ? 'σε άλλον έναν' : `σε άλλους ${m}`} ${declaredPart}. Στους ${gap} αυτούς νομούς ζουν ${residents} κάτοικοι.`;
+}
+
 export function insights(data: AtlasData): Insight[] {
 	const idx = buildIndex(data);
 	const out: Insight[] = [];
@@ -50,19 +59,22 @@ export function insights(data: AtlasData): Insight[] {
 		const c = idx.cellByKey.get(cellKey(prefectureId, specialtyId));
 		return c ? sumCounts(c.counts, PUBLIC) : 0;
 	};
+	// A declared clinic never closes a gap; it only splits it (schema 3).
+	const declared = (prefectureId: number, specialtyId: number) => prefectureState(idx.cellByKey.get(cellKey(prefectureId, specialtyId)), PUBLIC) === 'registered';
 
 	// Gaps: per core specialty, the prefectures with no public site and the residents there.
 	const gaps = core
 		.map((s) => {
 			const missing = data.prefectures.filter((p) => pubCount(p.id, s.id) === 0);
-			return { s, missing, residents: missing.reduce((n, p) => n + p.population, 0) };
+			const m = missing.filter((p) => declared(p.id, s.id)).length;
+			return { s, missing, m, residents: missing.reduce((n, p) => n + p.population, 0) };
 		})
 		.filter((g) => g.missing.length > 0)
 		.sort((a, b) => b.residents - a.residents || b.missing.length - a.missing.length);
 	for (const [i, g] of gaps.entries()) {
 		out.push({
 			id: i === 0 ? 'gap-worst' : `gap-${g.s.id}`,
-			text: `${g.s.name}: σε ${g.missing.length} από τους ${total} νομούς δεν υπάρχει δημόσια δομή στον κατάλογο ηλεκτρονικών ραντεβού. Εκεί ζουν ${people(g.residents)} κάτοικοι.`,
+			text: gapText(g.s.name, g.missing.length, g.m, total, people(g.residents)),
 			selection: { mode: 'specialty', prefectureId: null, specialtyId: g.s.id, sectors: [...PUBLIC] },
 			evidenceKey: null,
 			metric: 'coverage',
