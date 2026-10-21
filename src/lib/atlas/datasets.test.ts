@@ -13,7 +13,8 @@ import {
 	datasetPaths,
 	datasetRows,
 	filterFor,
-	parseDatasetPath
+	parseDatasetPath,
+	type DataFilter
 } from './datasets';
 
 const cell = (prefectureId: number, specialtyId: number, esy: number, pfy: number, priv: number, reg = 0) => ({
@@ -250,7 +251,8 @@ describe('open data: files', () => {
 	});
 });
 
-describe('open data on the real atlas.json', () => {
+// The real file is large and CI runners are slower than a laptop.
+describe('open data on the real atlas.json', { timeout: 30_000 }, () => {
 	const real = JSON.parse(readFileSync('static/atlas.json', 'utf8')) as AtlasReport;
 
 	it('the specialty files add up to the whole file', () => {
@@ -277,21 +279,25 @@ describe('open data on the real atlas.json', () => {
 		expect(hidden.length).toBeGreaterThan(100); // the check is not vacuous
 		const pubPos = new Set(real.providers.filter(isPub).map((p) => `${p.lat},${p.lon}`));
 		const pubText = new Set(real.providers.filter(isPub).flatMap((p) => [p.address, p.name]));
-		const ids = hidden.map((p) => `"${p.id}"`);
-		const pos = hidden.filter((p) => p.lat != null && !pubPos.has(`${p.lat},${p.lon}`)).map((p) => [p.lat, p.lon]);
+		const ids = new Set(hidden.map((p) => p.id));
+		const pos = new Set(hidden.filter((p) => p.lat != null && !pubPos.has(`${p.lat},${p.lon}`)).map((p) => `${p.lat},${p.lon}`));
 		// The export already blanks their addresses; if one ever comes through, no file may carry it.
 		expect(hidden.every((p) => !p.address)).toBe(true);
-		const addr = hidden.map((p) => p.address).filter((a) => a && a.length > 8 && !pubText.has(a));
-		const files = DATASETS.flatMap((d) => [datasetJson(real, d.id, {}), ...(d.filters.length ? [datasetJson(real, d.id, { specialtyId: 20 }), datasetJson(real, d.id, { prefectureId: 34 })] : [])]);
-		const csvs = DATASETS.map((d) => datasetCsv(real, d.id, {}));
-		for (const text of csvs) for (const id of hidden.map((p) => p.id)) expect(text.includes(`,${id},`) || text.includes(`\n${id},`), `csv: ${id}`).toBe(false);
-		for (const text of files) {
-			const j = JSON.parse(text) as { dataset: string; rows: Record<string, unknown>[] };
-			for (const id of ids) expect(text.includes(id), `${j.dataset}: ${id}`).toBe(false);
-			for (const a of addr) expect(text.includes(JSON.stringify(a)), `${j.dataset}: address`).toBe(false);
-			const rowPos = new Set(j.rows.filter((r) => r.lat != null).map((r) => `${r.lat},${r.lon}`));
-			for (const [la, lo] of pos) expect(rowPos.has(`${la},${lo}`), `${j.dataset}: position`).toBe(false);
+		const addr = new Set(hidden.map((p) => p.address).filter((a) => a && a.length > 8 && !pubText.has(a)));
+		const found: string[] = [];
+		const leaks = (dataset: string, values: Iterable<unknown>) => {
+			for (const v of values) if (typeof v === 'string' && (ids.has(v) || addr.has(v))) found.push(`${dataset}: ${v}`);
+		};
+		for (const d of DATASETS) {
+			const cuts: DataFilter[] = d.filters.length ? [{}, { specialtyId: 20 }, { prefectureId: 34 }] : [{}];
+			for (const f of cuts) {
+				const j = JSON.parse(datasetJson(real, d.id, f)) as { rows: Record<string, unknown>[] };
+				leaks(d.id, j.rows.flatMap((r) => Object.values(r)));
+				for (const r of j.rows) if (r.lat != null && pos.has(`${r.lat},${r.lon}`)) found.push(`${d.id}: position ${r.lat},${r.lon}`);
+			}
+			leaks(`${d.id}.csv`, datasetCsv(real, d.id, {}).split(/[,\r\n]+/));
 		}
+		expect(found).toEqual([]);
 	});
 
 	it('the Ψυχίατρος headline matches the specialty-coverage row (6 none + 5 declared)', () => {
