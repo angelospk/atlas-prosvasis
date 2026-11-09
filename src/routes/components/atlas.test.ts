@@ -1044,7 +1044,7 @@ describe('honest claims (2026-10-13)', () => {
 		const html = render(WaitDistribution, { props: { data, selection: all, onShowOnMap: () => {} } }).body;
 		expect(html).toContain('Πάτησε ένα όνομα: ανοίγει στον χάρτη και αλλάζει τα φίλτρα. Πάτησε μια τελεία: πόλεις και σημεία.');
 		expect(html).toMatch(/class="to-map[^"]*"[^>]*aria-label="[^"]+: δες στον χάρτη, αλλάζει τα φίλτρα"/);
-		expect(html).toMatch(/<span class="go[^"]*" aria-hidden="true">↗<\/span>/);
+		expect(html).toMatch(/<span class="go[^"]*" aria-hidden="true">↗\uFE0E<\/span>/u);
 	});
 	it('methodology says what is measured, the three empty states, the window, islands, provisional pins and how to correct', () => {
 		const at = { ...report, scan: { ...report.scan, at: '2026-10-11T04:42:20' } };

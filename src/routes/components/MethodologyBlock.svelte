@@ -189,7 +189,6 @@
 <style>
 	.method {
 		border-top: 1px solid var(--line);
-		border-bottom: 1px solid var(--line);
 		padding: 0.6rem 0;
 		color: var(--ink-2);
 	}

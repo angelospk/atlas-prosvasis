@@ -327,7 +327,7 @@
   <a class="skip-link" href="#atlas-map">Μετάβαση στον χάρτη</a>
   <AtlasNav {data} selection={pendingSelection ?? selection} onChange={pickFromNav} onReset={reset} {updating} {activeSection} onNavigate={navigate} onHeightChange={publishBarHeight} />
   <main class="page">
-  <header class="top"><div class="intro"><h1>Δημόσια ιατρική φροντίδα, <span>νομό προς νομό.</span></h1><p class="lede">Ανοιχτά δεδομένα από το e-ραντεβού του Υπουργείου Υγείας: πού βρίσκεις την ειδικότητα που σου καλύπτει η δημόσια ασφάλιση, πόσο απέχει και πόσες ημέρες μέχρι το πρώτο ραντεβού.</p><p class="edition"><strong>{data.prefectures.length} νομοί</strong><span aria-hidden="true">·</span><strong>{data.specialties.length} ειδικότητες</strong><span aria-hidden="true">·</span>σάρωση {fmtDateLong(data.scan.at)}</p></div><div class="art"><HeroConstellation {data} boundaries={page.boundaries} /></div></header>
+  <header class="top"><div class="intro"><h1>Δημόσια ιατρική φροντίδα, <span>νομό προς νομό.</span></h1><p class="lede">Ανοιχτά δεδομένα από το e-ραντεβού του Υπουργείου Υγείας: πού βρίσκεις την ειδικότητα που σου καλύπτει η δημόσια ασφάλιση, πόσο απέχει και πόσες ημέρες μέχρι το πρώτο ραντεβού.</p><p class="edition"><strong>{data.prefectures.length} νομοί</strong><span aria-hidden="true">·</span><strong>{data.specialties.length} ειδικότητες</strong><span class="scan"><span aria-hidden="true">·</span>σάρωση {fmtDateLong(data.scan.at)}</span></p></div><div class="art"><HeroConstellation {data} boundaries={page.boundaries} /></div></header>
 
 		<div class="results" aria-busy={updating}>
 			<KeyFindings {data} onMap={insightOnMap} onDetail={insightDetail} />
@@ -374,7 +374,7 @@
 	.intro { display:grid; gap:.9rem; min-width:0; }
 	h1 { font-size: clamp(2rem, 3.6vw, 3.1rem); line-height: 1.08; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
 	h1 span { display:block; color: var(--accent); }
-	.edition { display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem .5rem; margin:0; font-size:.82rem; color:var(--ink-3); } .edition strong { color:var(--ink); font-weight:600; } .edition span { color:var(--line-2); }
+	.edition { display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem .5rem; margin:0; font-size:.82rem; color:var(--ink-3); } .edition strong { color:var(--ink); font-weight:600; } .edition span { color:var(--line-2); } .edition .scan { color:inherit; white-space:nowrap; } .edition .scan > span { margin-right:.5rem; }
 	.art { justify-self:end; width:100%; max-width:250px; }
 	.lede { margin: 0; color: var(--ink-2); max-width: 56ch; text-wrap: pretty; }
 	.results { display: grid; gap: 3rem; min-width: 0; transition: opacity 120ms ease; }
@@ -385,6 +385,7 @@
 	.point-map-controls { min-width: 0; }
 	.point-map-controls button { min-height: 44px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--card); color: var(--ink-2); padding: 0 0.8rem; font: inherit; font-size: 0.84rem; font-weight: 600; cursor: pointer; }
 	.more { border-top: 1px solid var(--line); padding-top: 1rem; display: grid; gap: 2rem; min-width: 0; scroll-margin-top: calc(var(--atlas-bar-height, 0px) + 12px); }
+	.more:not([open]) { gap: 0; }
 	.more summary { cursor: pointer; font-weight: 600; font-size: 1.05rem; }
 	@media (min-width: 900px) {
 		.mapblock { grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr); }
@@ -397,7 +398,7 @@
 		.results { gap: 2rem; }
  /* Phone: the drawing sits small beside the title; the text runs full width below. */
  .top { grid-template-columns:minmax(0,1fr) 88px; grid-template-areas:'title art' 'lede lede' 'edition edition'; padding:.3rem 0 1rem; gap:.8rem; align-items:start; }
- .intro { display:contents; } h1 { grid-area:title; } .lede { grid-area:lede; } .edition { grid-area:edition; } .art { grid-area:art; max-width:88px; }
+ .intro { display:contents; } h1 { grid-area:title; } .lede { grid-area:lede; } .edition { grid-area:edition; } .edition .scan { flex-basis:100%; } .edition .scan > span { display:none; } .art { grid-area:art; max-width:88px; }
 		.point-map-panel h2 { margin-top: 0.2rem; }
 	}
 </style>

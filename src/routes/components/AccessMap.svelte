@@ -391,7 +391,7 @@
 	.legend .approx {
 		outline: 1.5px dashed var(--ink-3);
 		outline-offset: 2px;
-		margin-left: 2px;
+		margin: 0 3px 0 2px;
 	}
 	:global(.atlas-kmwrap) {
 		background: none;

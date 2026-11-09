@@ -96,7 +96,7 @@
 			<ol class="list">
 				{#each shown as row (row.key)}
 					<li class="row" data-key={row.key}>
-						<div class="name"><h3><button type="button" class="to-map" title="Δες στον χάρτη (αλλάζει τα φίλτρα)" aria-label={`${row.name}: δες στον χάρτη, αλλάζει τα φίλτρα`} onclick={() => onShowOnMap(row.key)}>{row.name}<span class="go" aria-hidden="true">↗</span></button></h3><span class="meta"><span class="mix" role="img" title={mixTitle(row.counts)} aria-label={mixTitle(row.counts)}>{#each SECTORS as sector (sector)}<span class="smark {sector}" class:off={!selection.sectors.includes(sector) || row.counts[sector] === 0}></span>{/each}</span>{row.stats.n}/{row.sites} με ημερομηνία</span></div>
+						<div class="name"><h3><button type="button" class="to-map" title="Δες στον χάρτη (αλλάζει τα φίλτρα)" aria-label={`${row.name}: δες στον χάρτη, αλλάζει τα φίλτρα`} onclick={() => onShowOnMap(row.key)}>{row.name}<span class="go" aria-hidden="true">↗︎</span></button></h3><span class="meta"><span class="mix" role="img" title={mixTitle(row.counts)} aria-label={mixTitle(row.counts)}>{#each SECTORS as sector (sector)}<span class="smark {sector}" class:off={!selection.sectors.includes(sector) || row.counts[sector] === 0}></span>{/each}</span>{row.stats.n}/{row.sites} με ημερομηνία</span></div>
 						<div class="plot" style:height={`${row.lanes * LANE + 16}px`} bind:clientWidth={plotWidth}>
 							<div class="grid" aria-hidden="true">{#each axis.ticks as t (t)}<i style:left={pct(t)}></i>{/each}</div>
 							<span class="range" aria-hidden="true" style:left={pct(row.stats.min)} style:width={`${(row.stats.max - row.stats.min) / axis.max * 100}%`}></span>
@@ -162,7 +162,7 @@
 				</select>
 			</label>
 		{/if}
-		<button class="map-action tool" onclick={() => onShowOnMap(mapKey)}>Δες στον χάρτη ↗</button>
+		<button class="map-action tool" onclick={() => onShowOnMap(mapKey)}>Δες στον χάρτη <svg class="ext" viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M3.5 8.5 8.5 3.5M4.5 3.5h4v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
 	</div>
 	<p class="note">Πρώτο διαθέσιμο ραντεβού κάθε σημείου τη μέρα της σάρωσης, όχι πραγματικός χρόνος εξυπηρέτησης.</p>
 </section>
@@ -211,7 +211,7 @@
 	.avg,.first { text-align:right; white-space:nowrap; } .avg strong,.first strong { font-size:1.15rem; font-weight:600; font-variant-numeric:tabular-nums; } .first strong { color:var(--ink-2); font-weight:500; } .avg small,.first small { margin-left:.2rem; font-size:.72rem; color:var(--ink-3); }
 	.actions { display:flex; gap:1rem; align-items:end; flex-wrap:wrap; } .actions label { display:grid; gap:.35rem; font-size:.78rem; min-width:0; flex:1; max-width:400px; }
 	select { width:100%; min-width:0; height:44px; border:1px solid var(--line-2); border-radius:var(--r-ctl); padding:0 .6rem; color:var(--ink); background:var(--card); font:inherit; font-size:16px; }
-	.tool { min-height:44px; padding:.5rem .9rem; background:var(--card); border:1px solid var(--line-2); border-radius:var(--r-ctl); font-size:.78rem; font-weight:500; } .tool:disabled { opacity:.5; cursor:default; } .map-action { background:var(--accent); color:white; border-color:var(--accent); }
+	.tool { min-height:44px; padding:.5rem .9rem; background:var(--card); border:1px solid var(--line-2); border-radius:var(--r-ctl); font-size:.78rem; font-weight:500; } .tool:disabled { opacity:.5; cursor:default; } .map-action { background:var(--accent); color:white; border-color:var(--accent); display:inline-flex; align-items:center; gap:.35rem; }
 	.empty { padding:1.5rem; background:var(--paper-2); }
 	.as-table summary { cursor:pointer; min-height:44px; display:flex; align-items:center; font-size:.82rem; font-weight:500; color:var(--accent-d); }
 	.table-wrap { max-height:420px; overflow:auto; border:1px solid var(--line); background:var(--card); }
