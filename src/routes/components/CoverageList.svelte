@@ -182,7 +182,7 @@
 						</section>
 					{/if}
 				{:else}
-					<p class="dsum">{plural(detail.providers.length, 'σημείο', 'σημεία')}{detail.pref ? ` στον ${detail.pref.genitive}` : ' σε όλη την Ελλάδα'} · ημερομηνίες από τη σάρωση της {fmtDay(data.scan.at)}.</p>
+					<p class="dsum">{plural(detail.providers.length, 'σημείο', 'σημεία')}{detail.pref ? ` στον νομό ${detail.pref.genitive}` : ' σε όλη την Ελλάδα'} · ημερομηνίες από τη σάρωση της {fmtDay(data.scan.at)}.</p>
 					<div class="groups">
 						{#each detail.groups as group (group.sector)}
 							<section class="group"><h4><span class="smark {group.sector}" aria-hidden="true"></span>{SECTOR_LABEL[group.sector]} <span class="n">{group.total}</span></h4>
