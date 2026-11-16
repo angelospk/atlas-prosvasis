@@ -4,7 +4,7 @@
 	// records and ones «no longer returned» (never "closed"). Paired bars on one shared scale,
 	// latest week first; a week opens to list its records.
 	import type { AtlasReport, ChangeItem } from '$lib/atlas/types';
-	import { buildIndex, fmtDayShort, fmtInt, plural, prefLabel, titleCase } from './format';
+	import { buildIndex, changeListNote, fmtDayShort, fmtInt, prefLabel, titleCase } from './format';
 
 	let { report }: { report: AtlasReport } = $props();
 
@@ -71,7 +71,7 @@
 									{#if g.count === 0}
 										<p class="note">Καμία.</p>
 									{:else}
-										<ul>
+										{#if g.items.length}<ul>
 											{#each sortItems(g.items) as it (it.providerId + ':' + it.specialtyId)}
 												<li>
 													<span class="smark {it.sector}" aria-hidden="true"></span>
@@ -79,10 +79,9 @@
 													<span class="imeta">{prefName(it.prefectureId)} · {specName(it.specialtyId)}</span>
 												</li>
 											{/each}
-										</ul>
-										{#if g.items.length < g.count}
-											<p class="note">και {plural(g.count - g.items.length, 'ακόμη', 'ακόμη')} (η λίστα κόβεται στις {g.items.length}).</p>
-										{/if}
+										</ul>{/if}
+										{@const note = changeListNote(g.count, g.items.length)}
+										{#if note}<p class="note">{note}</p>{/if}
 									{/if}
 								</div>
 							{/each}

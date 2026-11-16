@@ -701,6 +701,21 @@ export function sectorsLabel(sectors: readonly Sector[]): string {
 		.join(' + ');
 }
 
+/** The line under a weekly change list that shows `shown` of `count` entries, or null when the
+ *  list is whole. Older weeks keep only the count (QA 2026-11-15 F2). */
+export function changeListNote(count: number, shown: number): string | null {
+	if (shown >= count) return null;
+	if (shown === 0) return 'Η λίστα αυτής της εβδομάδας δεν κρατήθηκε· υπάρχει μόνο ο αριθμός.';
+	return `και ${plural(count - shown, 'ακόμη', 'ακόμη')} (η λίστα κόβεται στις ${shown}).`;
+}
+
+/** The label over a first-free-date figure: it names the sectors the date was taken from
+ *  (QA 2026-11-15 F1: «(δημόσια)» stood over ΕΟΠΥΥ dates). */
+export function firstDateLabel(sectors: readonly Sector[]): string {
+	const from = isPublicOnly(sectors) ? `δημόσια: ${sectorsLabel(sectors)}` : sectorsLabel(sectors);
+	return `Πρώτο ραντεβού (${from})`;
+}
+
 /** «όλη την Ελλάδα · Παιδίατρος · ΕΣΥ + ΠΦΥ»: what the page shows, in one plain line. */
 export function selectionLabel(idx: AtlasIndex, selection: Selection): string {
 	const pref = selection.prefectureId == null ? null : idx.prefById.get(selection.prefectureId);

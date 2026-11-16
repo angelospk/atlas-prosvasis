@@ -34,6 +34,7 @@
 		rateClass,
 		ringsPath,
 		sectorsLabel,
+		firstDateLabel,
 		specialtiesCovered,
 		titleCase,
 		type Box,
@@ -468,7 +469,7 @@
 			<div><dt>Σημεία</dt><dd class="num" class:zero={r.count === 0}>{r.count === 0 ? '0' : fmtInt(r.count)}</dd></div>
 			<div><dt>Ανά 100 χιλ.</dt><dd class="num" class:zero={r.count === 0}>{r.count === 0 ? '0' : fmtPer100k(r.per100k)}</dd></div>
 			<div>
-				<dt>Πρώτο ραντεβού (δημόσια)</dt>
+				<dt>{firstDateLabel(selection.sectors)}</dt>
 				<dd class="num">{#if r.earliestDate}{fmtDay(r.earliestDate)} <span class="muted">{fmtOffset(daysFromScan(r.earliestDate, data.scan.at))}</span>{:else}{EMPTY}{/if}</dd>
 			</div>
 			{#if r.count === 0}

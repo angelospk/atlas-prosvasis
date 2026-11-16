@@ -1431,3 +1431,30 @@ describe('one way to the data', () => {
 		expect(render(WaitDistribution, { props: { ...props, expanded: true } }).body).toMatch(/class="expand[^"]*\bstuck\b[^"]*"[^>]*>Λιγότερες<\/button>/);
 	});
 });
+
+// QA 2026-11-15 F1: the date under «Πρώτο ραντεβού» comes from the selected sectors, so the label
+// names those sectors; «(δημόσια)» over an ΕΟΠΥΥ date contradicted the sentence above it.
+describe('firstDateLabel', () => {
+	it('names the sectors the date comes from', async () => {
+		const { firstDateLabel } = await import('./format');
+		expect(firstDateLabel(['esy', 'pfy', 'eopyy', 'private'])).toBe('Πρώτο ραντεβού (όλοι οι φορείς)');
+		expect(firstDateLabel(['esy', 'pfy'])).toBe('Πρώτο ραντεβού (δημόσια: ΕΣΥ + ΠΦΥ)');
+		expect(firstDateLabel(['eopyy'])).toBe('Πρώτο ραντεβού (ΕΟΠΥΥ)');
+	});
+});
+
+// QA 2026-11-15 F2: 955 additions with no stored list read «η λίστα κόβεται στις 0».
+describe('changeListNote', () => {
+	it('says the list was not kept when only the count is stored', async () => {
+		const { changeListNote } = await import('./format');
+		expect(changeListNote(955, 0)).toBe('Η λίστα αυτής της εβδομάδας δεν κρατήθηκε· υπάρχει μόνο ο αριθμός.');
+	});
+	it('says how many more there are when the list is cut', async () => {
+		const { changeListNote } = await import('./format');
+		expect(changeListNote(250, 200)).toBe('και 50 ακόμη (η λίστα κόβεται στις 200).');
+	});
+	it('says nothing when the whole list is shown', async () => {
+		const { changeListNote } = await import('./format');
+		expect(changeListNote(3, 3)).toBeNull();
+	});
+});
