@@ -16,6 +16,7 @@ import {
 	parseDatasetPath,
 	type DataFilter
 } from './datasets';
+import { insights } from '../../routes/components/insights';
 
 const cell = (prefectureId: number, specialtyId: number, esy: number, pfy: number, priv: number, reg = 0) => ({
 	prefectureId,
@@ -300,8 +301,19 @@ describe('open data on the real atlas.json', { timeout: 30_000 }, () => {
 		expect(found).toEqual([]);
 	});
 
-	it('the Ψυχίατρος headline matches the specialty-coverage row (6 none + 5 declared)', () => {
+	// The counts move with each weekly scan (2026-11-15: Ξάνθη went from declared to bookable, 6+5 → 6+4),
+	// so this checks agreement on the day's data; the fixed split is in the fixture test above.
+	it('the Ψυχίατρος headline matches the specialty-coverage row', () => {
 		const row = datasetRows(real, 'specialty-coverage', {}).find((r) => r.specialty === 'Ψυχίατρος')!;
-		expect([row.prefecturesNone, row.prefecturesRegisteredOnly]).toEqual([6, 5]);
+		const text = insights(real).find((i) => i.text.startsWith('Ψυχίατρος:'))!.text;
+		const [none, reg] = [row.prefecturesNone, row.prefecturesRegisteredOnly] as number[];
+		expect(none + reg).toBeGreaterThan(0); // the headline exists only for a gap
+		const total = real.prefectures.length;
+		const others = reg === 1 ? 'σε άλλον έναν' : `σε άλλους ${reg}`;
+		const head =
+			reg === 0 ? `Ψυχίατρος: σε ${none} από τους ${total} νομούς δεν βρήκαμε δημόσιο`
+			: none === 0 ? `Ψυχίατρος: σε ${reg} από τους ${total} νομούς υπάρχει δηλωμένο`
+			: `Ψυχίατρος: σε ${none} από τους ${total} νομούς δεν βρήκαμε κανένα δημόσιο ιατρείο στον κατάλογο ηλεκτρονικών ραντεβού· ${others} υπάρχει δηλωμένο`;
+		expect(text.startsWith(head), text).toBe(true);
 	});
 });
